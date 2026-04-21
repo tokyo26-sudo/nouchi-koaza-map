@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v1.7</title>
+<title>農地小字マップ v1.8</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v1.7</span>
+  <span id="version-badge">v1.8</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -615,6 +615,7 @@ function rebuildLabels() {
 
   // 小字ラベル
   Object.entries(koazaData).forEach(([key, d]) => {
+    if (d.centerLat === undefined || d.centerLng === undefined) return;
     const icon = L.divIcon({
       className: '',
       html: `<div style="background:rgba(26,90,122,0.82);color:#fff;font-size:${sz.koaza}px;
@@ -630,6 +631,7 @@ function rebuildLabels() {
 
   // 大字ラベル
   Object.entries(oazaData).forEach(([key, d]) => {
+    if (d.centerLat === undefined || d.centerLng === undefined) return;
     const icon = L.divIcon({
       className: '',
       html: `<div style="background:rgba(122,58,16,0.88);color:#fff;font-size:${sz.oaza}px;
