@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>農地小字マップ v0.9</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&display=swap');
+
+:root {
+  --ink:       #1c1a14;
+  --paper:     #f2ece0;
+  --paper2:    #e6deca;
+  --border:    #c8b89a;
+  --oaza-col:  #7a3a10;
+  --koaza-col: #1a5a7a;
+  --pin-col:   #2a7a3a;
+  --accent:    #b85c10;
+  --sidebar-w: 260px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Serif JP', serif;
+  background: var(--paper);
+  color: var(--ink);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#header {
+  height: 48px; background: var(--ink); color: var(--paper);
+  display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  flex-shrink: 0; border-bottom: 2px solid var(--accent);
+}
+#header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.08em; flex: 1; }
+#version-badge { font-size: 10px; background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 3px; }
+#file-count { font-size: 11px; color: #aaa; }
+
+#main { flex: 1; display: flex; overflow: hidden; }
+
+#sidebar {
+  width: var(--sidebar-w); background: var(--paper2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+}
+
+/* レイヤーコントロール（一番上） */
+#layer-ctrl {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: var(--paper); font-size: 11px; flex-shrink: 0;
+}
+#layer-ctrl h3 { font-size: 10px; color: #888; letter-spacing: 0.08em; margin-bottom: 5px; text-transform: uppercase; }
+.layer-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.layer-row input[type=checkbox] { accent-color: var(--accent); }
+.layer-row label { cursor: pointer; }
+
+/* 透過率スライダー */
+.opacity-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.opacity-row label { font-size: 10px; color: #888; white-space: nowrap; }
+.opacity-row input[type=range] {
+  flex: 1; height: 3px; accent-color: var(--accent); cursor: pointer;
+}
+.opacity-row span { font-size: 10px; color: #888; width: 28px; text-align: right; }
+
+/* ファイル読み込み */
+#drop-zone { padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--paper); flex-shrink: 0; }
+#drop-area {
+  border: 2px dashed var(--border); border-radius: 6px; padding: 8px;
+  text-align: center; cursor: pointer; transition: all 0.2s;
+  font-size: 11px; color: #888; line-height: 1.6;
+}
+#drop-area:hover, #drop-area.dragover { border-color: var(--accent); background: rgba(184,92,16,0.06); color: var(--accent); }
+#drop-area input { display: none; }
+
+#file-list {
+  padding: 4px 10px; border-bottom: 1px solid var(--border);
+  background: var(--paper); max-height: 80px; overflow-y: auto; display: none; flex-shrink: 0;
+}
+.file-item {
+  font-size: 10px; color: #666; padding: 3px 4px; display: flex; align-items: center;
+  gap: 4px; cursor: pointer; border-radius: 3px; transition: all 0.15s;
+  border-left: 3px solid var(--pin-col);
+}
+.file-item:hover { background: rgba(42,122,58,0.08); }
+.file-item.hidden { color: #bbb; border-left-color: #ccc; text-decoration: line-through; }
+.file-item .file-eye { font-size: 10px; flex-shrink: 0; }
+
+/* アクションボタン */
+#action-btns {
+  padding: 6px 10px; border-bottom: 1px solid var(--border);
+  background: var(--paper); display: flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0;
+}
+.btn {
+  font-size: 10px; font-family: 'Noto Serif JP', serif;
+  padding: 4px 8px; border-radius: 3px; border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s; background: var(--paper2); color: var(--ink);
+}
+.btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.danger:hover { background: #a03020; border-color: #a03020; color: #fff; }
+
+/* 検索 */
+#tree-search { padding: 6px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#tree-search input {
+  width: 100%; padding: 4px 8px; font-size: 11px; font-family: 'Noto Serif JP', serif;
+  border: 1px solid var(--border); border-radius: 4px; background: var(--paper); color: var(--ink);
+}
+
+/* ツリー */
+#tree { flex: 1; overflow-y: auto; padding: 6px 0; }
+
+.oaza-item {
+  padding: 5px 12px 4px; font-size: 12px; font-weight: 600; color: var(--oaza-col);
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+  border-left: 3px solid transparent; transition: all 0.15s;
+}
+.oaza-item:hover { background: rgba(122,58,16,0.07); border-left-color: var(--oaza-col); }
+.oaza-item .toggle { font-size: 9px; transition: transform 0.2s; flex-shrink: 0; }
+.oaza-item.open .toggle { transform: rotate(90deg); }
+.oaza-item .cnt { font-size: 9px; color: #aaa; font-weight: 400; margin-left: auto; }
+
+.koaza-list { display: none; }
+.koaza-list.open { display: block; }
+
+.koaza-item {
+  padding: 3px 12px 3px 28px; font-size: 11px; color: var(--koaza-col);
+  cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s;
+  display: flex; align-items: center; gap: 4px;
+}
+.koaza-item:hover { background: rgba(26,90,122,0.07); border-left-color: var(--koaza-col); }
+.koaza-item.selected { background: rgba(26,90,122,0.15); border-left-color: var(--koaza-col); font-weight: 600; }
+.koaza-item .cnt { font-size: 9px; color: #aaa; margin-left: auto; }
+
+/* 地図 */
+#map { flex: 1; position: relative; }
+
+#stats {
+  position: absolute; bottom: 24px; right: 10px;
+  background: rgba(28,26,20,0.82); color: var(--paper);
+  font-size: 10px; padding: 6px 10px; border-radius: 4px;
+  z-index: 1000; line-height: 1.8; pointer-events: none;
+}
+
+#empty-msg {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  text-align: center; color: #aaa; pointer-events: none; z-index: 500;
+  font-size: 13px; line-height: 2;
+}
+#empty-msg .big { font-size: 32px; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>農地小字マップ</h1>
+  <span id="version-badge">v0.9</span>
+  <span id="file-count">ファイル未読込</span>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+
+    <!-- ① レイヤーコントロール（一番上） -->
+    <div id="layer-ctrl">
+      <h3>表示レイヤー</h3>
+      <div class="layer-row">
+        <input type="checkbox" id="chk-pin" checked onchange="toggleLayer('pin')">
+        <label for="chk-pin">農地ピン（点）</label>
+      </div>
+      <div class="layer-row">
+        <input type="checkbox" id="chk-koaza" checked onchange="toggleLayer('koaza')">
+        <label for="chk-koaza">小字ラベル</label>
+      </div>
+      <div class="layer-row">
+        <input type="checkbox" id="chk-oaza" checked onchange="toggleLayer('oaza')">
+        <label for="chk-oaza">大字ラベル</label>
+      </div>
+      <div class="opacity-row">
+        <label>地図の濃さ</label>
+        <input type="range" id="map-opacity" min="0" max="100" value="100" oninput="setMapOpacity(this.value)">
+        <span id="opacity-val">100%</span>
+      </div>
+    </div>
+
+    <!-- ファイル読み込み -->
+    <div id="drop-zone">
+      <div id="drop-area" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" accept=".geojson,.json" multiple>
+        📂 GeoJSONをドロップ<br>または クリックして選択<br><span style="font-size:10px">複数ファイルOK</span>
+      </div>
+    </div>
+
+    <!-- 読み込みファイル一覧 -->
+    <div id="file-list"></div>
+
+    <!-- アクションボタン -->
+    <div id="action-btns">
+      <button class="btn" onclick="saveGeoJSON()">💾 データ保存</button>
+      <button class="btn" onclick="downloadList()">📋 リストDL</button>
+      <button class="btn" onclick="downloadMyMapCSV()">🗺 マイマップCSV</button>
+      <button class="btn danger" onclick="clearAll()">🗑 クリア</button>
+    </div>
+
+    <!-- 検索 -->
+    <div id="tree-search">
+      <input type="text" id="search-input" placeholder="大字・小字を検索…" oninput="filterTree(this.value)">
+    </div>
+
+    <!-- 地名ツリー -->
+    <div id="tree"></div>
+  </div>
+
+  <!-- 地図 -->
+  <div id="map">
+    <div id="empty-msg">
+      <div class="big">🗾</div>
+      GeoJSONファイルを読み込むと<br>小字マップが表示されます
+    </div>
+    <div id="stats" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 地図初期化
+// ============================================================
+const map = L.map('map', { zoomControl: true }).setView([27.4, 128.9], 12);
+
+const baseLayers = {
+  '地理院（標準）': L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+    attribution: '© 国土地理院', maxZoom: 18
+  }),
+  '地理院（淡色）': L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+    attribution: '© 国土地理院', maxZoom: 18
+  }),
+  '地理院（写真）': L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', {
+    attribution: '© 国土地理院', maxZoom: 18
+  }),
+  'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 19
+  }),
+};
+baseLayers['地理院（淡色）'].addTo(map);
+L.control.layers(baseLayers, {}, { position: 'topright', collapsed: false }).addTo(map);
+
+// ============================================================
+// データ管理
+// ============================================================
+let allFeatures      = [];
+let koazaData        = {};
+let oazaData         = {};
+let pinMarkers       = {};   // koazaKey -> [circleMarker, ...]
+let selectedKoazaKey = null;
+const layerVisible   = { pin: true, koaza: true, oaza: true };
+const hiddenFiles    = new Set();  // 非表示ファイル名のセット
+
+const layers = {
+  pin:   L.layerGroup().addTo(map),
+  koaza: L.layerGroup().addTo(map),
+  oaza:  L.layerGroup().addTo(map),
+};
+
+// OazaCodeグループ内の共通プレフィクスから大字名を自動計算
+// oazaCache[pref|city|shikuchosonCode|oazaCode] = { oazaName, names[] }
+const oazaCache = {};
+
+function buildOazaCache(features) {
+  const groups = {};
+  features.forEach(f => {
+    const p = f.properties || {};
+    const addr = p.Address || p.address || '';
+    const code = String(p.OazaCode || '');
+    const shikucho = String(p.ShikuchosonCode || '');
+    const pref = getPrefFromAddr(addr);
+    const city = getCityFromAddr(addr);
+    if (!city || !code) return;
+    const key = pref + '|' + city + '|' + shikucho + '|' + code;
+    const name = stripTiban(addr.slice(addr.indexOf(pref + city) + pref.length + city.length));
+    if (name) {
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(name);
+    }
+  });
+  // 共通プレフィクスを計算
+  Object.entries(groups).forEach(([key, names]) => {
+    const unique = [...new Set(names)];
+    const prefix = commonPrefix(unique);
+    oazaCache[key] = { oazaName: prefix, names: unique };
+  });
+}
+
+function commonPrefix(arr) {
+  if (!arr.length) return '';
+  let prefix = arr[0];
+  for (const s of arr.slice(1)) {
+    while (!s.startsWith(prefix)) {
+      prefix = prefix.slice(0, -1);
+      if (!prefix) return '';
+    }
+  }
+  return prefix;
+}
+
+function stripTiban(s) {
+  s = s.replace(/[（(][１２３４５６７８９０\d]+[）)]/g, '');
+  s = s.replace(/[\d\-]+(?:\(\d+\))?$/, '');
+  return s.trim();
+}
+
+// ============================================================
+// ファイル読み込み
+// ============================================================
+const dropArea  = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input');
+let loadedFiles = [];
+
+dropArea.addEventListener('dragover',  e => { e.preventDefault(); dropArea.classList.add('dragover'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+dropArea.addEventListener('drop', e => {
+  e.preventDefault(); dropArea.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    if (loadedFiles.includes(file.name)) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const geojson = JSON.parse(ev.target.result);
+        addFeatures(geojson.features || [], file.name);
+        loadedFiles.push(file.name);
+        updateFileList();
+        rebuildMap();
+      } catch(err) {
+        alert('JSONよみこみエラー: ' + file.name);
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+  fileInput.value = '';
+}
+
+function addFeatures(features, filename) {
+  const existingIds = new Set(
+    allFeatures.map(f =>
+      f.properties?.DaichoId || f.properties?.筆ポリゴンID || f.properties?.id || null
+    ).filter(Boolean)
+  );
+  features.forEach(f => {
+    const fid = f.properties?.DaichoId || f.properties?.筆ポリゴンID || f.properties?.id;
+    if (fid && existingIds.has(fid)) return;
+    if (fid) existingIds.add(fid);
+    f._source = filename;
+    allFeatures.push(f);
+  });
+}
+
+function updateFileList() {
+  const fl = document.getElementById('file-list');
+  fl.style.display = loadedFiles.length ? 'block' : 'none';
+  fl.innerHTML = loadedFiles.map(n => {
+    const hidden = hiddenFiles.has(n);
+    return `<div class="file-item ${hidden ? 'hidden' : ''}" onclick="toggleFile('${n}')" title="${hidden ? '表示する' : '非表示にする'}">
+      <span class="file-eye">${hidden ? '🙈' : '👁'}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n}</span>
+    </div>`;
+  }).join('');
+  const visibleCount = allFeatures.filter(f => !hiddenFiles.has(f._source)).length;
+  document.getElementById('file-count').textContent =
+    `${loadedFiles.length}ファイル / ${visibleCount}件表示`;
+}
+
+function toggleFile(filename) {
+  if (hiddenFiles.has(filename)) {
+    hiddenFiles.delete(filename);
+  } else {
+    hiddenFiles.add(filename);
+  }
+  updateFileList();
+  rebuildMapFiltered();
+}
+
+function rebuildMapFiltered() {
+  // 表示対象のフィーチャだけでマップを再構築
+  const originalFeatures = allFeatures;
+  const filtered = allFeatures.filter(f => !hiddenFiles.has(f._source));
+  // 一時的にallFeaturesを差し替えてrebuildMap
+  allFeatures = filtered;
+  rebuildMap();
+  allFeatures = originalFeatures;
+}
+
+// ============================================================
+// 小字・大字の抽出
+// ============================================================
+function extractKoaza(addr, oazaCode, shikuchosonCode) {
+  const pref = getPrefFromAddr(addr);
+  const city = getCityFromAddr(addr);
+  const key = pref + '|' + city + '|' + String(shikuchosonCode || '') + '|' + String(oazaCode || '');
+  const cached = oazaCache[key];
+  if (!cached) return { oaza: '', koaza: '' };
+  const oazaName = cached.oazaName;
+  const idx = addr.indexOf(pref + city);
+  if (idx === -1) return { oaza: oazaName, koaza: oazaName };
+  const afterCity = addr.slice(idx + pref.length + city.length);
+  const full = stripTiban(afterCity);
+  const koaza = full.startsWith(oazaName) ? full.slice(oazaName.length).trim() : full;
+  return { oaza: oazaName, koaza: koaza || oazaName };
+}
+
+function getCityFromAddr(addr) {
+  const m = addr.match(/[都道府県](.+?[市町村])/);
+  return m ? m[1] : '';
+}
+function getPrefFromAddr(addr) {
+  const m = addr.match(/^(.+?[都道府県])/);
+  return m ? m[1] : '';
+}
+
+// ============================================================
+// 地図再構築
+// ============================================================
+function rebuildMap() {
+  layers.pin.clearLayers();
+  layers.koaza.clearLayers();
+  layers.oaza.clearLayers();
+  koazaData = {}; oazaData = {}; pinMarkers = {};
+  selectedKoazaKey = null;
+  document.getElementById('empty-msg').style.display = 'none';
+
+  // OazaCacheをまず構築
+  buildOazaCache(allFeatures);
+
+  allFeatures.forEach(f => {
+    const p = f.properties || {};
+    const addr = p.Address || p.address || '';
+    const oazaCode = p.OazaCode || p.oaza_code || '';
+    const coords = f.geometry?.coordinates;
+    if (!coords || !addr) return;
+
+    const lng = coords[0], lat = coords[1];
+    const pref = getPrefFromAddr(addr);
+    const city = getCityFromAddr(addr);
+    const { oaza, koaza } = extractKoaza(addr, oazaCode, p.ShikuchosonCode || '');
+    if (!koaza) return;
+
+    const koazaKey = `${pref}|${city}|${oaza}|${koaza}`;
+    const oazaKey  = `${pref}|${city}|${oaza}`;
+
+    if (!koazaData[koazaKey])
+      koazaData[koazaKey] = { pref, city, oaza, koaza, lats: [], lngs: [], count: 0 };
+    koazaData[koazaKey].lats.push(lat);
+    koazaData[koazaKey].lngs.push(lng);
+    koazaData[koazaKey].count++;
+
+    if (!oazaData[oazaKey])
+      oazaData[oazaKey] = { pref, city, oaza, koazaKeys: new Set(), lats: [], lngs: [] };
+    oazaData[oazaKey].koazaKeys.add(koazaKey);
+    oazaData[oazaKey].lats.push(lat);
+    oazaData[oazaKey].lngs.push(lng);
+
+    const marker = L.circleMarker([lat, lng], {
+      radius: 2, color: '#2a7a3a', fillColor: '#4aaa5a',
+      fillOpacity: 0.7, weight: 0.5, opacity: 0.6
+    }).bindPopup(`<b>${oaza} ${koaza}</b><br>${addr}`);
+
+    if (!pinMarkers[koazaKey]) pinMarkers[koazaKey] = [];
+    pinMarkers[koazaKey].push(marker);
+    marker.addTo(layers.pin);
+  });
+
+  // 小字ラベル
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const cLat = d.lats.reduce((a,b)=>a+b,0)/d.lats.length;
+    const cLng = d.lngs.reduce((a,b)=>a+b,0)/d.lngs.length;
+    d.centerLat = cLat; d.centerLng = cLng;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:rgba(26,90,122,0.82);color:#fff;font-size:10px;
+        font-family:'Noto Serif JP',serif;padding:2px 5px;border-radius:3px;
+        white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);
+        margin-left:-50%;display:inline-block;">${d.koaza}<small style="opacity:0.7;font-size:8px"> ${d.count}</small></div>`,
+      iconAnchor: [0, 10],
+    });
+    L.marker([cLat, cLng], { icon })
+      .bindPopup(`<b>${d.oaza} ${d.koaza}</b><br>農地 ${d.count}件`)
+      .addTo(layers.koaza);
+  });
+
+  // 大字ラベル
+  Object.entries(oazaData).forEach(([key, d]) => {
+    const cLat = d.lats.reduce((a,b)=>a+b,0)/d.lats.length;
+    const cLng = d.lngs.reduce((a,b)=>a+b,0)/d.lngs.length;
+    d.centerLat = cLat; d.centerLng = cLng;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:rgba(122,58,16,0.88);color:#fff;font-size:12px;
+        font-family:'Noto Serif JP',serif;font-weight:600;padding:3px 8px;border-radius:3px;
+        white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4);
+        letter-spacing:0.05em;margin-left:-50%;display:inline-block;">${d.oaza}</div>`,
+      iconAnchor: [0, 12],
+    });
+    L.marker([cLat, cLng], { icon })
+      .bindPopup(`<b>${d.oaza}</b><br>小字 ${d.koazaKeys.size}個`)
+      .addTo(layers.oaza);
+  });
+
+  // 全データにフィット
+  const allLats = allFeatures.map(f=>f.geometry?.coordinates?.[1]).filter(Boolean);
+  const allLngs = allFeatures.map(f=>f.geometry?.coordinates?.[0]).filter(Boolean);
+  if (allLats.length) {
+    map.fitBounds([
+      [Math.min(...allLats), Math.min(...allLngs)],
+      [Math.max(...allLats), Math.max(...allLngs)],
+    ], { padding: [30,30] });
+  }
+
+  // レイヤー表示状態を反映
+  ['pin','koaza','oaza'].forEach(name => {
+    if (layerVisible[name]) map.addLayer(layers[name]);
+    else map.removeLayer(layers[name]);
+  });
+
+  updateStats();
+  buildTree();
+}
+
+// ============================================================
+// レイヤー切り替え（農地ピンはマスク）
+// ============================================================
+function toggleLayer(name) {
+  layerVisible[name] = document.getElementById('chk-' + name).checked;
+  if (layerVisible[name]) map.addLayer(layers[name]);
+  else map.removeLayer(layers[name]);
+}
+
+// ============================================================
+// 小字クリック → ハイライト
+// ============================================================
+function flyToKoaza(key) {
+  const d = koazaData[key];
+  if (!d) return;
+  map.setView([d.centerLat, d.centerLng], 15, { animate: true });
+
+  // 全ピンをうすくする
+  Object.keys(pinMarkers).forEach(k => {
+    pinMarkers[k].forEach(m =>
+      m.setStyle({ radius: 2, fillOpacity: 0.1, opacity: 0.12, weight: 0.5 })
+    );
+  });
+
+  // 選択した小字のピンをハイライト
+  if (pinMarkers[key]) {
+    pinMarkers[key].forEach(m => {
+      m.setStyle({ radius: 5, color: '#e06020', fillColor: '#ff8030', fillOpacity: 0.9, weight: 1.5, opacity: 1 });
+      m.bringToFront();
+    });
+  }
+
+  selectedKoazaKey = key;
+  document.querySelectorAll('.koaza-item').forEach(el => el.classList.remove('selected'));
+  const target = document.querySelector(`.koaza-item[data-key="${key}"]`);
+  if (target) target.classList.add('selected');
+}
+
+function resetHighlight() {
+  Object.keys(pinMarkers).forEach(k => {
+    pinMarkers[k].forEach(m =>
+      m.setStyle({ radius: 2, color: '#2a7a3a', fillColor: '#4aaa5a', fillOpacity: 0.7, weight: 0.5, opacity: 0.6 })
+    );
+  });
+  selectedKoazaKey = null;
+  document.querySelectorAll('.koaza-item').forEach(el => el.classList.remove('selected'));
+}
+
+map.on('click', resetHighlight);
+
+// ============================================================
+// 地図の透過率
+// ============================================================
+function setMapOpacity(val) {
+  document.getElementById('opacity-val').textContent = val + '%';
+  // アクティブなベースレイヤーの透過率を変える
+  map.eachLayer(layer => {
+    if (layer.options && layer.options.attribution !== undefined && layer.setOpacity) {
+      layer.setOpacity(val / 100);
+    }
+  });
+}
+
+// ============================================================
+// 統計
+// ============================================================
+function updateStats() {
+  const st = document.getElementById('stats');
+  if (allFeatures.length === 0) { st.style.display = 'none'; return; }
+  st.style.display = 'block';
+  st.innerHTML = `農地ピン: <b>${allFeatures.length}</b>件　大字: <b>${Object.keys(oazaData).length}</b>　小字: <b>${Object.keys(koazaData).length}</b>`;
+}
+
+// ============================================================
+// ツリー（五十音順）
+// ============================================================
+function buildTree(filter = '') {
+  const tree = document.getElementById('tree');
+  const fl = filter.toLowerCase();
+
+  const grouped = {};
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const oazaKey = `${d.pref}|${d.city}|${d.oaza}`;
+    if (!grouped[oazaKey]) grouped[oazaKey] = { d, keys: [] };
+    grouped[oazaKey].keys.push(key);
+  });
+
+  const sortedOaza = Object.entries(grouped).sort(([,a],[,b]) =>
+    a.d.oaza.localeCompare(b.d.oaza, 'ja')
+  );
+
+  let html = '';
+  sortedOaza.forEach(([oKey, g]) => {
+    const oazaLabel = `${g.d.city} ${g.d.oaza}`;
+    const koazaItems = g.keys
+      .filter(k => {
+        const kd = koazaData[k];
+        return !fl || kd.koaza.includes(fl) || kd.oaza.includes(fl);
+      })
+      .sort((a,b) => koazaData[a].koaza.localeCompare(koazaData[b].koaza, 'ja'));
+
+    if (fl && koazaItems.length === 0 && !oazaLabel.includes(fl)) return;
+
+    const isOpen = fl ? 'open' : '';
+    html += `<div class="oaza-item ${isOpen}" onclick="toggleOaza(this,'${oKey}')">
+      <span class="toggle">▶</span>${g.d.oaza}<span class="cnt">${g.keys.length}</span>
+    </div>
+    <div class="koaza-list ${isOpen}" id="kl-${oKey.replace(/\|/g,'_')}">`;
+
+    koazaItems.forEach(k => {
+      const kd = koazaData[k];
+      const sel = k === selectedKoazaKey ? 'selected' : '';
+      html += `<div class="koaza-item ${sel}" data-key="${k}" onclick="flyToKoaza('${k}')">
+        ${kd.koaza}<span class="cnt">${kd.count}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  tree.innerHTML = html || '<div style="padding:12px;font-size:11px;color:#aaa">該当なし</div>';
+}
+
+function toggleOaza(el, oKey) {
+  el.classList.toggle('open');
+  const list = document.getElementById('kl-' + oKey.replace(/\|/g,'_'));
+  if (list) list.classList.toggle('open');
+}
+
+function filterTree(val) { buildTree(val); }
+
+// ============================================================
+// データ保存（GeoJSON DL）
+// ============================================================
+function getTopCity() {
+  const cityCounts = {};
+  allFeatures.forEach(f => {
+    const city = getCityFromAddr(f.properties?.Address || '');
+    if (city) cityCounts[city] = (cityCounts[city] || 0) + 1;
+  });
+  return Object.entries(cityCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || '不明';
+}
+
+function getTimestamp() {
+  const n = new Date();
+  return n.getFullYear().toString() +
+    String(n.getMonth()+1).padStart(2,'0') +
+    String(n.getDate()).padStart(2,'0') +
+    String(n.getHours()).padStart(2,'0') +
+    String(n.getMinutes()).padStart(2,'0') +
+    String(n.getSeconds()).padStart(2,'0');
+}
+
+function saveGeoJSON() {
+  if (allFeatures.length === 0) { alert('データがありません'); return; }
+  const filename = `小字_${getTopCity()}_${getTimestamp()}.geojson`;
+  const blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features: allFeatures })], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ============================================================
+// リストDL（テキスト）
+// ============================================================
+function downloadList() {
+  if (Object.keys(koazaData).length === 0) { alert('データがありません'); return; }
+
+  const grouped = {};
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const oazaKey = `${d.pref}|${d.city}|${d.oaza}`;
+    if (!grouped[oazaKey]) grouped[oazaKey] = { d, items: [] };
+    grouped[oazaKey].items.push(d);
+  });
+
+  let text = '農地小字リスト\n================\n\n';
+  Object.entries(grouped)
+    .sort(([,a],[,b]) => a.d.oaza.localeCompare(b.d.oaza,'ja'))
+    .forEach(([,g]) => {
+      text += `【${g.d.city} ${g.d.oaza}】\n`;
+      g.items
+        .sort((a,b) => a.koaza.localeCompare(b.koaza,'ja'))
+        .forEach(d => { text += `  ${d.koaza}（${d.count}件）\n`; });
+      text += '\n';
+    });
+
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `小字リスト_${getTopCity()}_${getTimestamp()}.txt`;
+  a.click();
+}
+
+// ============================================================
+// マイマップ用CSV書き出し
+// ============================================================
+function downloadMyMapCSV() {
+  if (Object.keys(koazaData).length === 0) { alert('データがありません'); return; }
+
+  const rows = [];
+  // ヘッダ
+  rows.push(['名前','緯度','経度','種別','都道府県','市町村','大字','小字','農地件数','説明'].join(','));
+
+  // 大字の中心点
+  Object.entries(oazaData)
+    .sort(([,a],[,b]) => a.oaza.localeCompare(b.oaza,'ja'))
+    .forEach(([,d]) => {
+      const name = `${d.oaza}（大字）`;
+      const desc = `${d.city} ${d.oaza}（小字${d.koazaKeys.size}個）`;
+      rows.push([
+        `"${name}"`,
+        d.centerLat.toFixed(6),
+        d.centerLng.toFixed(6),
+        '大字',
+        `"${d.pref}"`,
+        `"${d.city}"`,
+        `"${d.oaza}"`,
+        '',
+        d.koazaKeys.size,
+        `"${desc}"`
+      ].join(','));
+    });
+
+  // 小字の中心点
+  Object.entries(koazaData)
+    .sort(([,a],[,b]) => a.oaza.localeCompare(b.oaza,'ja') || a.koaza.localeCompare(b.koaza,'ja'))
+    .forEach(([,d]) => {
+      const name = `${d.oaza}_${d.koaza}`;
+      const desc = `${d.city} ${d.oaza} ${d.koaza}（農地${d.count}件）`;
+      rows.push([
+        `"${name}"`,
+        d.centerLat.toFixed(6),
+        d.centerLng.toFixed(6),
+        '小字',
+        `"${d.pref}"`,
+        `"${d.city}"`,
+        `"${d.oaza}"`,
+        `"${d.koaza}"`,
+        d.count,
+        `"${desc}"`
+      ].join(','));
+    });
+
+  const bom = '﻿';
+  const blob = new Blob([bom + rows.join('
+')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `マイマップ_${getTopCity()}_${getTimestamp()}.csv`;
+  a.click();
+}
+
+// ============================================================
+// データクリア
+// ============================================================
+function clearAll() {
+  if (allFeatures.length === 0) return;
+  if (!confirm('読み込んだデータをすべてクリアしますか？')) return;
+
+  allFeatures = []; loadedFiles = [];
+  koazaData = {}; oazaData = {}; pinMarkers = {};
+  selectedKoazaKey = null;
+
+  layers.pin.clearLayers();
+  layers.koaza.clearLayers();
+  layers.oaza.clearLayers();
+
+  updateFileList();
+  updateStats();
+  document.getElementById('tree').innerHTML = '';
+  document.getElementById('empty-msg').style.display = 'block';
+  document.getElementById('search-input').value = '';
+}
+</script>
+</body>
+</html>
