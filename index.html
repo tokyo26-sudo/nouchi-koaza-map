@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v1.4</title>
+<title>農地小字マップ v1.6</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v1.4</span>
+  <span id="version-badge">v1.6</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -591,7 +591,7 @@ function rebuildLabels() {
       html: `<div style="background:rgba(26,90,122,0.82);color:#fff;font-size:${sz.koaza}px;
         font-family:'Noto Serif JP',serif;padding:2px 5px;border-radius:3px;
         white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);
-        margin-left:-50%;display:inline-block;">${d.koaza}<small style="opacity:0.7;font-size:${sz.koazaSub}px"> ${d.count}</small></div>`,
+        margin-left:-50%;display:inline-block;">${d.koaza}</div>`,
       iconAnchor: [0, sz.koaza + 2],
     });
     L.marker([d.centerLat, d.centerLng], { icon })
@@ -800,6 +800,27 @@ async function downloadMyMapCSV() {
   const zip = new JSZip();
   const ts = getTimestamp();
 
+  // 大字ピンのCSVをひとつくわえる
+  const oazaHeader = ['name','latitude','longitude','市町村','大字','小字数','説明'].join(',');
+  const oazaRows = [oazaHeader];
+  Object.entries(oazaData)
+    .sort(([,a],[,b]) => a.city.localeCompare(b.city,'ja') || a.oaza.localeCompare(b.oaza,'ja'))
+    .forEach(([,d]) => {
+      const name = `${d.oaza}`;
+      const desc = `${d.city} ${d.oaza}（小字${d.koazaKeys.size}個）`;
+      oazaRows.push([
+        `"${name}"`,
+        d.centerLat.toFixed(6),
+        d.centerLng.toFixed(6),
+        `"${d.city}"`,
+        `"${d.oaza}"`,
+        d.koazaKeys.size,
+        `"${desc}"`
+      ].join(','));
+    });
+  zip.file(`_大字一覧_${ts}.csv`, bom + oazaRows.join(nl));
+
+  // 小字CSVを大字ごとにわける
   Object.entries(oazaGroups)
     .sort(([,a],[,b]) => a.d.city.localeCompare(b.d.city,'ja') || a.d.oaza.localeCompare(b.d.oaza,'ja'))
     .forEach(([,g]) => {
