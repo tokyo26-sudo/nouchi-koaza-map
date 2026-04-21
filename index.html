@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v2.4</title>
+<title>農地小字マップ v2.5</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v2.4</span>
+  <span id="version-badge">v2.5</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -437,8 +437,15 @@ function extractKoazaDirect(addr) {
   if (!cityM) return null;
   const rest = addr.slice(cityM.index + cityM[0].length);
 
-  // パターン1: 「大字〇〇字△△」
-  let m = rest.match(/^大字([^\d字（]+?)字([^\d（]+)/);
+  // 特別パターン: 「大字等なし〇〇」→ 大字:等なし、小字:〇〇（共通プレフィクスにまかせる）
+  if (rest.includes('大字等なし')) return null;
+
+  // パターン1: 「大字〇〇字△△」（サブエリアあってもOK）
+  let m = rest.match(/大字([^\d字（]+?)字([^\d（]+)/);
+  if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
+
+  // パターン2: 「〇〇字△△」（大字なし）
+  m = rest.match(/^([^\d字（]+?)字([^\d（]+)/);
   if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
 
   // パターン3: 知名町パタン「（全角数字）」
