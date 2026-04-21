@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v1.2</title>
+<title>農地小字マップ v1.4</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v1.2</span>
+  <span id="version-badge">v1.4</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -233,7 +233,7 @@ body {
   <div id="map">
     <div id="empty-msg">
       <div class="big">🗾</div>
-      GeoJSONファイルを読み込むと<br>小字マップが表示されます
+      農地ナビからダウンロードした<br>GeoJSONファイルを読み込むと<br>小字マップが表示されます
     </div>
     <div id="stats" style="display:none"></div>
   </div>
@@ -490,41 +490,8 @@ function rebuildMap() {
     marker.addTo(layers.pin);
   });
 
-  // 小字ラベル
-  Object.entries(koazaData).forEach(([key, d]) => {
-    const cLat = d.lats.reduce((a,b)=>a+b,0)/d.lats.length;
-    const cLng = d.lngs.reduce((a,b)=>a+b,0)/d.lngs.length;
-    d.centerLat = cLat; d.centerLng = cLng;
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="background:rgba(26,90,122,0.82);color:#fff;font-size:10px;
-        font-family:'Noto Serif JP',serif;padding:2px 5px;border-radius:3px;
-        white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);
-        margin-left:-50%;display:inline-block;">${d.koaza}<small style="opacity:0.7;font-size:8px"> ${d.count}</small></div>`,
-      iconAnchor: [0, 10],
-    });
-    L.marker([cLat, cLng], { icon })
-      .bindPopup(`<b>${d.oaza} ${d.koaza}</b><br>農地 ${d.count}件`)
-      .addTo(layers.koaza);
-  });
-
-  // 大字ラベル
-  Object.entries(oazaData).forEach(([key, d]) => {
-    const cLat = d.lats.reduce((a,b)=>a+b,0)/d.lats.length;
-    const cLng = d.lngs.reduce((a,b)=>a+b,0)/d.lngs.length;
-    d.centerLat = cLat; d.centerLng = cLng;
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="background:rgba(122,58,16,0.88);color:#fff;font-size:12px;
-        font-family:'Noto Serif JP',serif;font-weight:600;padding:3px 8px;border-radius:3px;
-        white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4);
-        letter-spacing:0.05em;margin-left:-50%;display:inline-block;">${d.oaza}</div>`,
-      iconAnchor: [0, 12],
-    });
-    L.marker([cLat, cLng], { icon })
-      .bindPopup(`<b>${d.oaza}</b><br>小字 ${d.koazaKeys.size}個`)
-      .addTo(layers.oaza);
-  });
+  // 小字ラベル・大字ラベルはrebuildLabels()で作成
+  rebuildLabels();
 
   // 全データにフィット
   const allLats = allFeatures.map(f=>f.geometry?.coordinates?.[1]).filter(Boolean);
@@ -595,6 +562,62 @@ function resetHighlight() {
 }
 
 map.on('click', resetHighlight);
+
+// ズームにおうじてラベルをつくりなおす
+map.on('zoomend', rebuildLabels);
+
+// ============================================================
+// ラベル再構築（ズームレベルにおうじてフォントサイズをかえる）
+// ============================================================
+function getLabelSizes() {
+  const z = map.getZoom();
+  if (z >= 16) return { koaza: 14, koazaSub: 11, oaza: 16 };
+  if (z >= 14) return { koaza: 12, koazaSub: 9,  oaza: 14 };
+  if (z >= 12) return { koaza: 10, koazaSub: 8,  oaza: 12 };
+  return              { koaza: 9,  koazaSub: 7,  oaza: 10 };
+}
+
+function rebuildLabels() {
+  if (Object.keys(koazaData).length === 0) return;
+  layers.koaza.clearLayers();
+  layers.oaza.clearLayers();
+
+  const sz = getLabelSizes();
+
+  // 小字ラベル
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:rgba(26,90,122,0.82);color:#fff;font-size:${sz.koaza}px;
+        font-family:'Noto Serif JP',serif;padding:2px 5px;border-radius:3px;
+        white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);
+        margin-left:-50%;display:inline-block;">${d.koaza}<small style="opacity:0.7;font-size:${sz.koazaSub}px"> ${d.count}</small></div>`,
+      iconAnchor: [0, sz.koaza + 2],
+    });
+    L.marker([d.centerLat, d.centerLng], { icon })
+      .bindPopup(`<b>${d.oaza} ${d.koaza}</b><br>農地 ${d.count}件`)
+      .addTo(layers.koaza);
+  });
+
+  // 大字ラベル
+  Object.entries(oazaData).forEach(([key, d]) => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:rgba(122,58,16,0.88);color:#fff;font-size:${sz.oaza}px;
+        font-family:'Noto Serif JP',serif;font-weight:600;padding:3px 8px;border-radius:3px;
+        white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4);
+        letter-spacing:0.05em;margin-left:-50%;display:inline-block;">${d.oaza}</div>`,
+      iconAnchor: [0, sz.oaza + 2],
+    });
+    L.marker([d.centerLat, d.centerLng], { icon })
+      .bindPopup(`<b>${d.oaza}</b><br>小字 ${d.koazaKeys.size}個`)
+      .addTo(layers.oaza);
+  });
+
+  // レイヤー表示状態を反映
+  if (layerVisible.koaza) map.addLayer(layers.koaza); else map.removeLayer(layers.koaza);
+  if (layerVisible.oaza)  map.addLayer(layers.oaza);  else map.removeLayer(layers.oaza);
+}
 
 // ============================================================
 // 地図の透過率
