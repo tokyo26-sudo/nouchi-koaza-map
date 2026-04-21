@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v0.9</title>
+<title>農地小字マップ v1.0</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -162,7 +162,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v0.9</span>
+  <span id="version-badge">v1.0</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -779,9 +779,9 @@ function downloadMyMapCSV() {
       ].join(','));
     });
 
-  const bom = '﻿';
-  const blob = new Blob([bom + rows.join('
-')], { type: 'text/csv;charset=utf-8' });
+  const separator = String.fromCharCode(10);
+  const bom = String.fromCharCode(0xFEFF);
+  const blob = new Blob([bom + rows.join(separator)], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `マイマップ_${getTopCity()}_${getTimestamp()}.csv`;
