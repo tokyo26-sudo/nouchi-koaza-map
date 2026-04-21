@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v2.7</title>
+<title>農地小字マップ v2.8</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v2.7</span>
+  <span id="version-badge">v2.8</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -661,7 +661,7 @@ function rebuildLabels() {
       html: `<div style="background:rgba(26,90,122,0.82);color:#fff;font-size:${sz.koaza}px;
         font-family:'Noto Serif JP',serif;padding:2px 5px;border-radius:3px;
         white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);
-        margin-left:-50%;display:inline-block;">${d.koaza}</div>`,
+        margin-left:-50%;display:inline-block;">${d.koaza === d.oaza ? '' : d.koaza}</div>`,
       iconAnchor: [0, sz.koaza + 2],
     });
     L.marker([d.centerLat, d.centerLng], { icon })
