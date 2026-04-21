@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v1.6</title>
+<title>農地小字マップ v1.7</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v1.6</span>
+  <span id="version-badge">v1.7</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -414,7 +414,34 @@ function rebuildMapFiltered() {
 // ============================================================
 // 小字・大字の抽出
 // ============================================================
+function extractKoazaDirect(addr) {
+  // 住所から「大字」「字」キーワードをつかって直接とりだす
+  const cityM = addr.match(/[都道府県](.+?[市町村])/);
+  if (!cityM) return null;
+  const rest = addr.slice(cityM.index + cityM[0].length);
+
+  // パターン1: 「大字〇〇字△△」
+  let m = rest.match(/^大字([^\d字（]+?)字([^\d（]+)/);
+  if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
+
+  // パターン2: 「〇〇字△△」（大字なし、字あり）
+  m = rest.match(/^([^\d字（]+?)字([^\d（]+)/);
+  if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
+
+  // パターン3: 知名町パタン「（全角数字）」
+  m = addr.match(/[市町村]([^\d（(]+?)（[１２３４５６７８９０]+）([^\d（(]+?)\d/);
+  if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
+
+  // それ以外→共通プレフィクスにまかせる
+  return null;
+}
+
 function extractKoaza(addr, oazaCode, shikuchosonCode) {
+  // まず直接パタンマッチをこころみる
+  const direct = extractKoazaDirect(addr);
+  if (direct && direct.oaza && direct.koaza) return direct;
+
+  // それ以外は共通プレフィクスキャッシュをつかう
   const pref = getPrefFromAddr(addr);
   const city = getCityFromAddr(addr);
   const key = pref + '|' + city + '|' + String(shikuchosonCode || '') + '|' + String(oazaCode || '');
@@ -424,7 +451,9 @@ function extractKoaza(addr, oazaCode, shikuchosonCode) {
   const idx = addr.indexOf(pref + city);
   if (idx === -1) return { oaza: oazaName, koaza: oazaName };
   const afterCity = addr.slice(idx + pref.length + city.length);
-  const full = stripTiban(afterCity);
+  // 「大字」「字」プレフィクスをのぞいてから処理
+  const cleaned = afterCity.replace(/^大字/, '').replace(/^字/, '');
+  const full = stripTiban(cleaned);
   const koaza = full.startsWith(oazaName) ? full.slice(oazaName.length).trim() : full;
   return { oaza: oazaName, koaza: koaza || oazaName };
 }
