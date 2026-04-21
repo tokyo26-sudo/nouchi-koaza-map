@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v2.5</title>
+<title>農地小字マップ v2.7</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v2.5</span>
+  <span id="version-badge">v2.7</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -437,14 +437,23 @@ function extractKoazaDirect(addr) {
   if (!cityM) return null;
   const rest = addr.slice(cityM.index + cityM[0].length);
 
-  // 特別パターン: 「大字等なし〇〇」→ 大字:等なし、小字:〇〇（共通プレフィクスにまかせる）
+  // 特別パターン: 「大字等なし〇〇」→ 共通プレフィクスにまかせる
   if (rest.includes('大字等なし')) return null;
 
   // パターン1: 「大字〇〇字△△」（サブエリアあってもOK）
   let m = rest.match(/大字([^\d字（]+?)字([^\d（]+)/);
   if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
 
-  // パターン2: 「〇〇字△△」（大字なし）
+  // パターン2: 「大字」をのぞいてから「〇〇字△△」
+  const restNoDaiji = rest.replace(/^.*大字/, '');
+  if (restNoDaiji && restNoDaiji !== rest) {
+    // 「大字〇〇」だけ（字なし）→ 共通プレフィクスにまかせる
+    if (!restNoDaiji.includes('字')) return null;
+    m = restNoDaiji.match(/^([^\d字（]+?)字([^\d（]+)/);
+    if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
+  }
+
+  // 「大字」なしで「〇〇字△△」
   m = rest.match(/^([^\d字（]+?)字([^\d（]+)/);
   if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
 
@@ -511,8 +520,9 @@ function rebuildMap() {
     const lng = coords[0], lat = coords[1];
     const pref = getPrefFromAddr(addr);
     const city = getCityFromAddr(addr);
-    const { oaza, koaza } = extractKoaza(addr, oazaCode, p.ShikuchosonCode || '');
-    if (!koaza) return;
+    const { oaza, koaza: koazaRaw } = extractKoaza(addr, oazaCode, p.ShikuchosonCode || '');
+    if (!oaza && !koazaRaw) return;
+    const koaza = koazaRaw || oaza;
 
     const koazaKey = `${pref}|${city}|${oaza}|${koaza}`;
     const oazaKey  = `${pref}|${city}|${oaza}`;
