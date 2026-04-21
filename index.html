@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v1.1</title>
+<title>農地小字マップ v1.2</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v1.1</span>
+  <span id="version-badge">v1.2</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -601,9 +601,9 @@ map.on('click', resetHighlight);
 // ============================================================
 function setMapOpacity(val) {
   document.getElementById('opacity-val').textContent = val + '%';
-  // アクティブなベースレイヤーの透過率を変える
+  // ベースレイヤー（タイル）だけうすくする
   map.eachLayer(layer => {
-    if (layer.options && layer.options.attribution !== undefined && layer.setOpacity) {
+    if (layer instanceof L.TileLayer) {
       layer.setOpacity(val / 100);
     }
   });
