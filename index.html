@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v1.9</title>
+<title>農地小字マップ v2.0</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v1.9</span>
+  <span id="version-badge">v2.0</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -214,7 +214,13 @@ body {
 
     <!-- アクションボタン -->
     <div id="action-btns">
-      <button class="btn" onclick="saveGeoJSON()">💾 データ保存</button>
+      <div style="position:relative;display:inline-block">
+        <button class="btn" onclick="toggleSaveMenu()" id="save-btn">💾 データ保存 ▾</button>
+        <div id="save-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--paper);border:1px solid var(--border);border-radius:4px;z-index:1000;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15)">
+          <div onclick="saveGeoJSON(false)" style="padding:6px 12px;font-size:10px;cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background='rgba(184,92,16,0.08)'" onmouseout="this.style.background=''">💾 圧縮保存（小さい）</div>
+          <div onclick="saveGeoJSON(true)" style="padding:6px 12px;font-size:10px;cursor:pointer" onmouseover="this.style.background='rgba(184,92,16,0.08)'" onmouseout="this.style.background=''">💾 フル保存（そのまま）</div>
+        </div>
+      </div>
       <button class="btn" onclick="downloadList()">📋 小字リストDL</button>
       <button class="btn" onclick="downloadMyMapCSV()">🗺 Googleマイマップ用CSV</button><button class="btn" onclick="downloadKML()">🗺 KML</button>
       <button class="btn danger" onclick="clearAll()">🗑 クリア</button>
@@ -773,10 +779,44 @@ function getTimestamp() {
     String(n.getSeconds()).padStart(2,'0');
 }
 
-function saveGeoJSON() {
+function toggleSaveMenu() {
+  const menu = document.getElementById('save-menu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  // メニュー外クリックでとじる
+  setTimeout(() => {
+    document.addEventListener('click', function closeSaveMenu(e) {
+      if (!document.getElementById('save-btn').contains(e.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeSaveMenu);
+      }
+    });
+  }, 0);
+}
+
+function saveGeoJSON(fullMode = false) {
   if (allFeatures.length === 0) { alert('データがありません'); return; }
-  const filename = `小字_${getTopCity()}_${getTimestamp()}.geojson`;
-  const blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features: allFeatures })], { type: 'application/json' });
+  document.getElementById('save-menu').style.display = 'none';
+
+  let features;
+  if (fullMode) {
+    features = allFeatures;
+  } else {
+    // 圧縮モード: 座標・住所・大字コード・台帳IDのみ
+    features = allFeatures.map(f => ({
+      type: 'Feature',
+      geometry: f.geometry,
+      properties: {
+        Address:        f.properties?.Address || '',
+        OazaCode:       f.properties?.OazaCode || '',
+        ShikuchosonCode: f.properties?.ShikuchosonCode || '',
+        DaichoId:       f.properties?.DaichoId || '',
+      }
+    }));
+  }
+
+  const suffix = fullMode ? '_フル' : '_圧縮';
+  const filename = `小字_${getTopCity()}_${getTimestamp()}${suffix}.geojson`;
+  const blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features })], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
