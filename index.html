@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v1.0</title>
+<title>農地小字マップ v1.1</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -136,6 +136,16 @@ body {
 .koaza-item.selected { background: rgba(26,90,122,0.15); border-left-color: var(--koaza-col); font-weight: 600; }
 .koaza-item .cnt { font-size: 9px; color: #aaa; margin-left: auto; }
 
+.city-item {
+  padding: 6px 12px 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ink);
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+
 /* 地図 */
 #map { flex: 1; position: relative; }
 
@@ -162,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v1.0</span>
+  <span id="version-badge">v1.1</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -205,8 +215,8 @@ body {
     <!-- アクションボタン -->
     <div id="action-btns">
       <button class="btn" onclick="saveGeoJSON()">💾 データ保存</button>
-      <button class="btn" onclick="downloadList()">📋 リストDL</button>
-      <button class="btn" onclick="downloadMyMapCSV()">🗺 マイマップCSV</button>
+      <button class="btn" onclick="downloadList()">📋 小字リストDL</button>
+      <button class="btn" onclick="downloadMyMapCSV()">🗺 Googleマイマップ用CSV</button><button class="btn" onclick="downloadKML()">🗺 KML</button>
       <button class="btn danger" onclick="clearAll()">🗑 クリア</button>
     </div>
 
@@ -624,11 +634,21 @@ function buildTree(filter = '') {
   });
 
   const sortedOaza = Object.entries(grouped).sort(([,a],[,b]) =>
-    a.d.oaza.localeCompare(b.d.oaza, 'ja')
+    a.d.city.localeCompare(b.d.city, 'ja') || a.d.oaza.localeCompare(b.d.oaza, 'ja')
   );
 
-  let html = '';
+  // 市町村ごとにグループ化
+  const byCity = {};
   sortedOaza.forEach(([oKey, g]) => {
+    const cityKey = `${g.d.pref}|${g.d.city}`;
+    if (!byCity[cityKey]) byCity[cityKey] = { city: g.d.city, oazas: [] };
+    byCity[cityKey].oazas.push([oKey, g]);
+  });
+
+  let html = '';
+  Object.entries(byCity).forEach(([cityKey, cityGroup]) => {
+    html += `<div class="city-item">${cityGroup.city}</div>`;
+    cityGroup.oazas.forEach(([oKey, g]) => {
     const oazaLabel = `${g.d.city} ${g.d.oaza}`;
     const koazaItems = g.keys
       .filter(k => {
@@ -653,6 +673,7 @@ function buildTree(filter = '') {
       </div>`;
     });
     html += `</div>`;
+    });
   });
 
   tree.innerHTML = html || '<div style="padding:12px;font-size:11px;color:#aaa">該当なし</div>';
@@ -730,61 +751,146 @@ function downloadList() {
 }
 
 // ============================================================
-// マイマップ用CSV書き出し
+// Googleマイマップ用CSV（大字ごとにわけてZIPでDL）
 // ============================================================
-function downloadMyMapCSV() {
+async function downloadMyMapCSV() {
   if (Object.keys(koazaData).length === 0) { alert('データがありません'); return; }
 
-  const rows = [];
-  // ヘッダ
-  rows.push(['名前','緯度','経度','種別','都道府県','市町村','大字','小字','農地件数','説明'].join(','));
-
-  // 大字の中心点
-  Object.entries(oazaData)
-    .sort(([,a],[,b]) => a.oaza.localeCompare(b.oaza,'ja'))
-    .forEach(([,d]) => {
-      const name = `${d.oaza}（大字）`;
-      const desc = `${d.city} ${d.oaza}（小字${d.koazaKeys.size}個）`;
-      rows.push([
-        `"${name}"`,
-        d.centerLat.toFixed(6),
-        d.centerLng.toFixed(6),
-        '大字',
-        `"${d.pref}"`,
-        `"${d.city}"`,
-        `"${d.oaza}"`,
-        '',
-        d.koazaKeys.size,
-        `"${desc}"`
-      ].join(','));
-    });
-
-  // 小字の中心点
-  Object.entries(koazaData)
-    .sort(([,a],[,b]) => a.oaza.localeCompare(b.oaza,'ja') || a.koaza.localeCompare(b.koaza,'ja'))
-    .forEach(([,d]) => {
-      const name = `${d.oaza}_${d.koaza}`;
-      const desc = `${d.city} ${d.oaza} ${d.koaza}（農地${d.count}件）`;
-      rows.push([
-        `"${name}"`,
-        d.centerLat.toFixed(6),
-        d.centerLng.toFixed(6),
-        '小字',
-        `"${d.pref}"`,
-        `"${d.city}"`,
-        `"${d.oaza}"`,
-        `"${d.koaza}"`,
-        d.count,
-        `"${desc}"`
-      ].join(','));
-    });
-
-  const separator = String.fromCharCode(10);
+  const nl = String.fromCharCode(10);
   const bom = String.fromCharCode(0xFEFF);
-  const blob = new Blob([bom + rows.join(separator)], { type: 'text/csv;charset=utf-8' });
+  const header = ['name','latitude','longitude','市町村','大字','小字','農地件数','説明'].join(',');
+
+  // 大字ごとにCSVをつくる
+  const oazaGroups = {};
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const oazaKey = `${d.pref}|${d.city}|${d.oaza}`;
+    if (!oazaGroups[oazaKey]) oazaGroups[oazaKey] = { d, items: [] };
+    oazaGroups[oazaKey].items.push(d);
+  });
+
+  // JSZipをつかう
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+  document.head.appendChild(script);
+  await new Promise(r => script.onload = r);
+
+  const zip = new JSZip();
+  const ts = getTimestamp();
+
+  Object.entries(oazaGroups)
+    .sort(([,a],[,b]) => a.d.city.localeCompare(b.d.city,'ja') || a.d.oaza.localeCompare(b.d.oaza,'ja'))
+    .forEach(([,g]) => {
+      const rows = [header];
+      g.items
+        .sort((a,b) => a.koaza.localeCompare(b.koaza,'ja'))
+        .forEach(d => {
+          const name = `${d.oaza}_${d.koaza}`;
+          const desc = `${d.city} ${d.oaza} ${d.koaza}（農地${d.count}件）`;
+          rows.push([
+            `"${name}"`,
+            d.centerLat.toFixed(6),
+            d.centerLng.toFixed(6),
+            `"${d.city}"`,
+            `"${d.oaza}"`,
+            `"${d.koaza}"`,
+            d.count,
+            `"${desc}"`
+          ].join(','));
+        });
+      const csvContent = bom + rows.join(nl);
+      const fname = `${g.d.city}_${g.d.oaza}_${ts}.csv`;
+      zip.file(fname, csvContent);
+    });
+
+  const blob = await zip.generateAsync({ type: 'blob' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `マイマップ_${getTopCity()}_${getTimestamp()}.csv`;
+  a.download = `マイマップCSV_${getTopCity()}_${ts}.zip`;
+  a.click();
+}
+
+// ============================================================
+// KML書き出し（大字・小字の色わけあり）
+// ============================================================
+function downloadKML() {
+  if (Object.keys(koazaData).length === 0) { alert('データがありません'); return; }
+
+  const oazaColor = 'ffaa3300';  // 青系（AABBGGRR形式）
+  const koazaColor = 'ff2277aa'; // 茶系
+
+  let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>農地小字マップ_${getTopCity()}_${getTimestamp()}</name>
+  <Style id="oaza-style">
+    <IconStyle>
+      <color>${oazaColor}</color>
+      <scale>1.2</scale>
+    </IconStyle>
+    <LabelStyle><scale>0.8</scale></LabelStyle>
+  </Style>
+  <Style id="koaza-style">
+    <IconStyle>
+      <color>${koazaColor}</color>
+      <scale>0.9</scale>
+    </IconStyle>
+    <LabelStyle><scale>0.7</scale></LabelStyle>
+  </Style>
+`;
+
+  // 大字フォルダ
+  kml += `  <Folder><name>大字</name>
+`;
+  Object.entries(oazaData)
+    .sort(([,a],[,b]) => a.city.localeCompare(b.city,'ja') || a.oaza.localeCompare(b.oaza,'ja'))
+    .forEach(([,d]) => {
+      kml += `    <Placemark>
+      <name>${d.city} ${d.oaza}</name>
+      <styleUrl>#oaza-style</styleUrl>
+      <description>${d.city} ${d.oaza}（小字${d.koazaKeys.size}個）</description>
+      <Point><coordinates>${d.centerLng.toFixed(6)},${d.centerLat.toFixed(6)},0</coordinates></Point>
+    </Placemark>
+`;
+    });
+  kml += `  </Folder>
+`;
+
+  // 小字フォルダ（大字ごとにサブフォルダ）
+  const oazaGroups = {};
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const oKey = `${d.pref}|${d.city}|${d.oaza}`;
+    if (!oazaGroups[oKey]) oazaGroups[oKey] = { d, items: [] };
+    oazaGroups[oKey].items.push(d);
+  });
+
+  kml += `  <Folder><name>小字</name>
+`;
+  Object.entries(oazaGroups)
+    .sort(([,a],[,b]) => a.d.city.localeCompare(b.d.city,'ja') || a.d.oaza.localeCompare(b.d.oaza,'ja'))
+    .forEach(([,g]) => {
+      kml += `    <Folder><name>${g.d.city} ${g.d.oaza}</name>
+`;
+      g.items.sort((a,b) => a.koaza.localeCompare(b.koaza,'ja')).forEach(d => {
+        kml += `      <Placemark>
+        <name>${d.koaza}</name>
+        <styleUrl>#koaza-style</styleUrl>
+        <description>${d.city} ${d.oaza} ${d.koaza}（農地${d.count}件）</description>
+        <Point><coordinates>${d.centerLng.toFixed(6)},${d.centerLat.toFixed(6)},0</coordinates></Point>
+      </Placemark>
+`;
+      });
+      kml += `    </Folder>
+`;
+    });
+  kml += `  </Folder>
+`;
+  kml += `</Document>
+</kml>`;
+
+  const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `小字マップ_${getTopCity()}_${getTimestamp()}.kml`;
   a.click();
 }
 
