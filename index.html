@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地小字マップ v2.0</title>
+<title>農地小字マップ v2.3</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -172,7 +172,7 @@ body {
 
 <div id="header">
   <h1>農地小字マップ</h1>
-  <span id="version-badge">v2.0</span>
+  <span id="version-badge">v2.3</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -378,6 +378,17 @@ function addFeatures(features, filename) {
     if (fid && existingIds.has(fid)) return;
     if (fid) existingIds.add(fid);
     f._source = filename;
+    // 座標を5けたに丸めてメモリをかるくする
+    if (f.geometry?.coordinates) {
+      const c = f.geometry.coordinates;
+      f.geometry = {
+        type: f.geometry.type,
+        coordinates: [
+          Math.round(c[0] * 100000) / 100000,
+          Math.round(c[1] * 100000) / 100000
+        ]
+      };
+    }
     allFeatures.push(f);
   });
 }
@@ -801,17 +812,27 @@ function saveGeoJSON(fullMode = false) {
   if (fullMode) {
     features = allFeatures;
   } else {
-    // 圧縮モード: 座標・住所・大字コード・台帳IDのみ
-    features = allFeatures.map(f => ({
-      type: 'Feature',
-      geometry: f.geometry,
-      properties: {
-        Address:        f.properties?.Address || '',
-        OazaCode:       f.properties?.OazaCode || '',
-        ShikuchosonCode: f.properties?.ShikuchosonCode || '',
-        DaichoId:       f.properties?.DaichoId || '',
-      }
-    }));
+    // 圧縮モード: 座標（6けた）・住所・大字コード・台帳IDのみ
+    features = allFeatures.map(f => {
+      const coords = f.geometry?.coordinates;
+      const roundedGeom = coords ? {
+        type: f.geometry.type,
+        coordinates: [
+          Math.round(coords[0] * 100000) / 100000,
+          Math.round(coords[1] * 100000) / 100000
+        ]
+      } : f.geometry;
+      return {
+        type: 'Feature',
+        geometry: roundedGeom,
+        properties: {
+          Address:         f.properties?.Address || '',
+          OazaCode:        f.properties?.OazaCode || '',
+          ShikuchosonCode: f.properties?.ShikuchosonCode || '',
+          DaichoId:        f.properties?.DaichoId || '',
+        }
+      };
+    });
   }
 
   const suffix = fullMode ? '_フル' : '_圧縮';
