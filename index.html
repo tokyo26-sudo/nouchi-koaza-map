@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v3.1</title>
+<title>農地ナビ地名地図 v3.4</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -181,7 +181,7 @@ body {
     onmouseout="this.style.background='rgba(255,255,255,0.15)'">
     eMAFF農地ナビ ↗
   </a>
-  <span id="version-badge">v3.1</span>
+  <span id="version-badge">v3.4</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -608,19 +608,26 @@ function toggleLayer(name) {
 // ============================================================
 // 小字クリック → ハイライト
 // ============================================================
-function flyToKoaza(key) {
+function flyToKoaza(key, doZoom = false) {
   const d = koazaData[key];
   if (!d) return;
-  map.setView([d.centerLat, d.centerLng], 15, { animate: true });
 
-  // 全ピンをうすくする
-  Object.keys(pinMarkers).forEach(k => {
-    pinMarkers[k].forEach(m =>
-      m.setStyle({ radius: 2, fillOpacity: 0.1, opacity: 0.12, weight: 0.5 })
+  // おなじ小字をもういっかいクリックしたらリセット
+  if (selectedKoazaKey === key) {
+    resetHighlight();
+    return;
+  }
+
+  if (doZoom) map.setView([d.centerLat, d.centerLng], 15, { animate: true });
+
+  // まえのハイライトをもどす
+  if (selectedKoazaKey && pinMarkers[selectedKoazaKey]) {
+    pinMarkers[selectedKoazaKey].forEach(m =>
+      m.setStyle({ radius: 2, color: '#2a7a3a', fillColor: '#4aaa5a', fillOpacity: 0.7, weight: 0.5, opacity: 0.6 })
     );
-  });
+  }
 
-  // 選択した小字のピンをハイライト
+  // 選択した小字のピンをハイライト（ほかのピンはそのまま）
   if (pinMarkers[key]) {
     pinMarkers[key].forEach(m => {
       m.setStyle({ radius: 5, color: '#e06020', fillColor: '#ff8030', fillOpacity: 0.9, weight: 1.5, opacity: 1 });
@@ -776,7 +783,7 @@ function buildTree(filter = '') {
     koazaItems.forEach(k => {
       const kd = koazaData[k];
       const sel = k === selectedKoazaKey ? 'selected' : '';
-      html += `<div class="koaza-item ${sel}" data-key="${k}" onclick="flyToKoaza('${k}')">
+      html += `<div class="koaza-item ${sel}" data-key="${k}" onclick="flyToKoaza('${k}', true)">
         ${kd.koaza}<span class="cnt">${kd.count}</span>
       </div>`;
     });
