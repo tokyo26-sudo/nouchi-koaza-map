@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v3.4</title>
+<title>農地ナビ地名地図 v3.5</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -181,7 +181,7 @@ body {
     onmouseout="this.style.background='rgba(255,255,255,0.15)'">
     eMAFF農地ナビ ↗
   </a>
-  <span id="version-badge">v3.4</span>
+  <span id="version-badge">v3.5</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -686,6 +686,7 @@ function rebuildLabels() {
       iconAnchor: [0, sz.koaza + 2],
     });
     const koazaMarker = L.marker([d.centerLat, d.centerLng], { icon });
+    koazaMarker.bindPopup(`<b>${d.oaza === d.koaza ? d.oaza : d.oaza + ' ' + d.koaza}</b><br>農地 ${d.count}件`);
     koazaMarker.on('click', () => { if (layerVisible.pin) flyToKoaza(key); });
     koazaMarker.addTo(layers.koaza);
   });
