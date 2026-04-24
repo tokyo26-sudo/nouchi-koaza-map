@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v3.5</title>
+<title>農地ナビ地名地図 v4.0</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -80,8 +80,12 @@ body {
 
 #file-list {
   padding: 4px 10px; border-bottom: 1px solid var(--border);
-  background: var(--paper); max-height: 80px; overflow-y: auto; display: none; flex-shrink: 0;
+  background: var(--paper); min-height: 24px; max-height: 200px;
+  overflow-y: auto; display: none; flex-shrink: 0;
+  resize: vertical;
 }
+#file-list::-webkit-scrollbar { width: 8px; }
+#file-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .file-item {
   font-size: 10px; color: #666; padding: 3px 4px; display: flex; align-items: center;
   gap: 4px; cursor: pointer; border-radius: 3px; transition: all 0.15s;
@@ -156,6 +160,32 @@ body {
   z-index: 1000; line-height: 1.8; pointer-events: none;
 }
 
+/* 地番モーダル */
+#tiban-modal {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;
+}
+#tiban-modal.open { display: flex; }
+#tiban-box {
+  background: var(--paper); border-radius: 6px; padding: 16px;
+  max-width: 480px; width: 90%; max-height: 70vh; display: flex; flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+#tiban-box h3 { font-size: 13px; color: var(--oaza-col); margin-bottom: 8px; }
+#tiban-list {
+  flex: 1; overflow-y: auto; font-size: 11px; line-height: 1.8;
+  font-family: monospace; color: var(--ink); white-space: pre-wrap;
+  border: 1px solid var(--border); border-radius: 4px; padding: 8px;
+  background: var(--paper2);
+}
+#tiban-close {
+  margin-top: 10px; align-self: flex-end;
+  font-size: 11px; font-family: 'Noto Serif JP', serif;
+  padding: 4px 12px; border-radius: 3px; border: 1px solid var(--border);
+  cursor: pointer; background: var(--paper2);
+}
+#tiban-close:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 #empty-msg {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
   text-align: center; color: #aaa; pointer-events: none; z-index: 500;
@@ -163,9 +193,10 @@ body {
 }
 #empty-msg .big { font-size: 32px; }
 
-::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 </style>
 </head>
 <body>
@@ -181,7 +212,7 @@ body {
     onmouseout="this.style.background='rgba(255,255,255,0.15)'">
     eMAFF農地ナビ ↗
   </a>
-  <span id="version-badge">v3.5</span>
+  <span id="version-badge">v4.0</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -242,6 +273,15 @@ body {
 
     <!-- 地名ツリー -->
     <div id="tree"></div>
+  </div>
+
+  <!-- 地番モーダル -->
+  <div id="tiban-modal" onclick="closeTibanModal(event)">
+    <div id="tiban-box">
+      <h3 id="tiban-title"></h3>
+      <div id="tiban-list"></div>
+      <button id="tiban-close" onclick="closeTibanModal()">とじる</button>
+    </div>
   </div>
 
   <!-- 地図 -->
@@ -408,7 +448,7 @@ function updateFileList() {
   fl.innerHTML = loadedFiles.map(n => {
     const hidden = hiddenFiles.has(n);
     return `<div class="file-item ${hidden ? 'hidden' : ''}" onclick="toggleFile('${n}')" title="${hidden ? '表示する' : '非表示にする'}">
-      <span class="file-eye">${hidden ? '🙈' : '👁'}</span>
+      <span class="file-eye">${hidden ? '🙈' : '👀'}</span>
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n}</span>
     </div>`;
   }).join('');
@@ -784,8 +824,9 @@ function buildTree(filter = '') {
     koazaItems.forEach(k => {
       const kd = koazaData[k];
       const sel = k === selectedKoazaKey ? 'selected' : '';
-      html += `<div class="koaza-item ${sel}" data-key="${k}" onclick="flyToKoaza('${k}', true)">
-        ${kd.koaza}<span class="cnt">${kd.count}</span>
+      html += `<div class="koaza-item ${sel}" data-key="${k}" style="display:flex;align-items:center">
+        <span onclick="flyToKoaza('${k}', true)" style="flex:1;padding:3px 0">${kd.koaza}<span class="cnt" style="font-size:9px;color:#aaa;margin-left:4px">${kd.count}</span></span>
+        <span onclick="showTiban('${k}')" title="地番一覧" style="font-size:9px;color:#aaa;padding:2px 4px;cursor:pointer;border-radius:2px;border:1px solid #ddd;margin-left:4px;flex-shrink:0" onmouseover="this.style.background='rgba(26,90,122,0.1)'" onmouseout="this.style.background=''">地番</span>
       </div>`;
     });
     html += `</div>`;
@@ -802,6 +843,49 @@ function toggleOaza(el, oKey) {
 }
 
 function filterTree(val) { buildTree(val); }
+
+// ============================================================
+// 地番一覧モーダル
+// ============================================================
+function showTiban(key) {
+  const d = koazaData[key];
+  if (!d) return;
+
+  // この小字のTibanをあつめる
+  const tibans = allFeatures
+    .filter(f => {
+      const p = f.properties || {};
+      const addr = p.Address || '';
+      const oazaCode = p.OazaCode || '';
+      const shikucho = p.ShikuchosonCode || '';
+      const pref = getPrefFromAddr(addr);
+      const city = getCityFromAddr(addr);
+      const { oaza, koaza: k } = extractKoaza(addr, oazaCode, shikucho);
+      const koaza = k || oaza;
+      const fkey = `${pref}|${city}|${oaza}|${koaza}`;
+      return fkey === key;
+    })
+    .map(f => f.properties?.Tiban || '')
+    .filter(Boolean)
+    .sort((a, b) => {
+      // 数字部分で自然順ソート
+      const na = parseInt(a) || 0;
+      const nb = parseInt(b) || 0;
+      return na !== nb ? na - nb : a.localeCompare(b, 'ja');
+    });
+
+  const title = `${d.oaza === d.koaza ? d.oaza : d.oaza + ' ' + d.koaza}　地番一覧（${tibans.length}件）`;
+  document.getElementById('tiban-title').textContent = title;
+  document.getElementById('tiban-list').textContent = tibans.join('
+');
+  document.getElementById('tiban-modal').classList.add('open');
+}
+
+function closeTibanModal(e) {
+  if (!e || e.target === document.getElementById('tiban-modal') || e.target === document.getElementById('tiban-close')) {
+    document.getElementById('tiban-modal').classList.remove('open');
+  }
+}
 
 // ============================================================
 // データ保存（GeoJSON DL）
@@ -865,6 +949,7 @@ function saveGeoJSON(fullMode = false) {
           OazaCode:        f.properties?.OazaCode || '',
           ShikuchosonCode: f.properties?.ShikuchosonCode || '',
           DaichoId:        f.properties?.DaichoId || '',
+          Tiban:           f.properties?.Tiban || '',
         }
       };
     });
@@ -1085,6 +1170,7 @@ function clearAll() {
   allFeatures = []; loadedFiles = [];
   koazaData = {}; oazaData = {}; pinMarkers = {};
   selectedKoazaKey = null;
+  hiddenFiles.clear();
 
   layers.pin.clearLayers();
   layers.koaza.clearLayers();
