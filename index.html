@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v4.1</title>
+<title>農地ナビ地名地図 v4.2</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -212,7 +212,7 @@ body {
     onmouseout="this.style.background='rgba(255,255,255,0.15)'">
     eMAFF農地ナビ ↗
   </a>
-  <span id="version-badge">v4.1</span>
+  <span id="version-badge">v4.2</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -426,7 +426,8 @@ function addFeatures(features, filename) {
     const fid = f.properties?.DaichoId || f.properties?.筆ポリゴンID || f.properties?.id;
     if (fid && existingIds.has(fid)) return;
     if (fid) existingIds.add(fid);
-    f._source = filename;
+    // _sourceをプロパティから復元（圧縮保存したデータのばあい）
+    f._source = f.properties?._source || filename;
     // 座標を5けたに丸めてメモリをかるくする
     if (f.geometry?.coordinates) {
       const c = f.geometry.coordinates;
@@ -949,6 +950,7 @@ function saveGeoJSON(fullMode = false) {
           ShikuchosonCode: f.properties?.ShikuchosonCode || '',
           DaichoId:        f.properties?.DaichoId || '',
           Tiban:           f.properties?.Tiban || '',
+          _source:         f._source || '',
         }
       };
     });
