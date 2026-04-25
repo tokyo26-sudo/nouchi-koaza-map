@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v4.4</title>
+<title>農地ナビ地名地図 v4.5</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -212,7 +212,7 @@ body {
     onmouseout="this.style.background='rgba(255,255,255,0.15)'">
     eMAFF農地ナビ ↗
   </a>
-  <span id="version-badge">v4.4</span>
+  <span id="version-badge">v4.5</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -744,6 +744,10 @@ function rebuildLabels() {
         oninput="saveMemo('${key}', this.value)"
       >${memoVal}</textarea>`;
     koazaMarker.bindPopup(memoHtml, { minWidth: 200 });
+    koazaMarker.on('popupopen', () => {
+      const ta = document.getElementById('memo-' + key.replace(/\|/g,'__'));
+      if (ta) ta.value = getMemo(key);
+    });
     koazaMarker.on('click', () => { if (layerVisible.pin) flyToKoaza(key); });
     koazaMarker.addTo(layers.koaza);
   });
@@ -769,9 +773,13 @@ function rebuildLabels() {
         placeholder="よみかた・メモをここに…"
         oninput="saveMemo('${key}', this.value)"
       >${oazaMemoVal}</textarea>`;
-    L.marker([d.centerLat, d.centerLng], { icon })
-      .bindPopup(oazaMemoHtml, { minWidth: 200 })
-      .addTo(layers.oaza);
+    const oazaMarker = L.marker([d.centerLat, d.centerLng], { icon });
+    oazaMarker.bindPopup(oazaMemoHtml, { minWidth: 200 });
+    oazaMarker.on('popupopen', () => {
+      const ta = document.getElementById('memo-' + key.replace(/\|/g,'__'));
+      if (ta) ta.value = getMemo(key);
+    });
+    oazaMarker.addTo(layers.oaza);
   });
 
   // レイヤー表示状態を反映
