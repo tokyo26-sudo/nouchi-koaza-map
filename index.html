@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v4.5</title>
+<title>農地ナビ地名地図 v4.6</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -212,7 +212,7 @@ body {
     onmouseout="this.style.background='rgba(255,255,255,0.15)'">
     eMAFF農地ナビ ↗
   </a>
-  <span id="version-badge">v4.5</span>
+  <span id="version-badge">v4.6</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
@@ -432,8 +432,7 @@ function addFeatures(features, filename) {
     if (fid) existingIds.add(fid);
     // _sourceをプロパティから復元（圧縮保存したデータのばあい）
     f._source = f.properties?._source || filename;
-    // _sourceのファイル名をloadedFilesにくわえる
-    if (!loadedFiles.includes(f._source)) loadedFiles.push(f._source);
+    // _sourceのファイル名をloadedFilesにくわえる処理はhandleFiles側でやるので不要
     // 座標を5けたに丸めてメモリをかるくする
     if (f.geometry?.coordinates) {
       const c = f.geometry.coordinates;
