@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.26</title>
+<title>農地ナビ地名地図 v5.27</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -118,6 +118,29 @@ body {
 }
 #drop-area:hover, #drop-area.dragover { border-color: var(--accent); background: rgba(184,92,16,0.06); color: var(--accent); }
 #drop-area input { display: none; }
+
+.oaza-highlight-btn {
+  font-size: 10px; margin-left: 4px; cursor: pointer;
+  opacity: 0.5; flex-shrink: 0;
+}
+.oaza-highlight-btn:hover { opacity: 1; }
+
+/* すまほ用フッタボタン */
+#mobile-footer {
+  display: none; padding: 10px; gap: 8px;
+  border-top: 2px solid var(--border);
+  background: var(--paper); flex-shrink: 0;
+}
+.mobile-footer-btn {
+  flex: 1; padding: 10px 8px; border-radius: 4px; cursor: pointer;
+  font-size: 12px; font-family: 'Noto Serif JP', serif;
+  text-align: center; border: 1px solid var(--border);
+  background: var(--paper2); color: var(--ink);
+  text-decoration: none; display: block;
+}
+.mobile-footer-btn.danger { border-color: #e74c3c; color: #e74c3c; }
+.mobile-footer-btn.danger:hover { background: rgba(231,76,60,0.1); }
+@media (max-width: 640px) { #mobile-footer { display: flex; } }
 
 /* スプリッター2（ドロップエリアとけんさくのあいだ） */
 .splitter2 {
@@ -576,7 +599,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.26</span>
+  <span id="version-badge-mobile">v5.27</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -608,7 +631,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.26</span>
+    <span id="version-badge">v5.27</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -693,6 +716,12 @@ body {
 
     <!-- 読み込みファイル一覧（さいご） -->
     <div id="file-list"></div>
+
+    <!-- すまほ用フッタボタン -->
+    <div id="mobile-footer">
+      <button class="mobile-footer-btn danger" onclick="clearAll();closeSidebar()">🗑 クリア</button>
+      <a href="https://map.maff.go.jp/" target="_blank" rel="noopener" class="mobile-footer-btn">eMAFF農地ナビ ↗</a>
+    </div>
   </div>
 
   <!-- 地番モーダル -->
@@ -1319,6 +1348,7 @@ function buildTree(filter = '') {
     const isOpen = fl ? 'open' : '';
     html += `<div class="oaza-item ${isOpen}" onclick="toggleOaza(this,'${oKey}')">
       <span class="toggle">▶</span>${g.d.oaza}<span class="cnt">${g.keys.length}</span>
+      <span class="oaza-highlight-btn" onclick="event.stopPropagation();highlightOaza('${oKey}')" title="のちピンをハイライト">🔆</span>
     </div>
     <div class="koaza-list ${isOpen}" id="kl-${oKey.replace(/\|/g,'_')}">`;
 
@@ -1348,6 +1378,44 @@ function toggleOaza(el, oKey) {
   el.classList.toggle('open');
   const list = document.getElementById('kl-' + oKey.replace(/\|/g,'_'));
   if (list) list.classList.toggle('open');
+}
+
+let _highlightedOazaKey = null;
+
+function highlightOaza(oKey) {
+  // もういちどおしたらハイライトをとる
+  if (_highlightedOazaKey === oKey) {
+    _clearHighlight();
+    _highlightedOazaKey = null;
+    return;
+  }
+  _clearHighlight();
+  _highlightedOazaKey = oKey;
+
+  layers.pin.eachLayer(marker => {
+    const f = marker.feature;
+    if (!f) return;
+    const fOazaKey = `${f.properties.pref}|${f.properties.city}|${f.properties.oaza}`;
+    if (fOazaKey === oKey) {
+      marker.setStyle({ fillColor: '#ff6600', color: '#ff3300', fillOpacity: 0.95, weight: 2 });
+    } else {
+      marker.setStyle({ fillOpacity: 0.2, opacity: 0.2 });
+    }
+  });
+}
+
+function _clearHighlight() {
+  layers.pin.eachLayer(marker => {
+    if (marker.setStyle) {
+      marker.setStyle({ fillColor: null, color: null, fillOpacity: null, opacity: null, weight: null });
+      // デフォルトスタイルにもどす
+      if (marker.options._origStyle) {
+        marker.setStyle(marker.options._origStyle);
+      }
+    }
+  });
+  // rebuildPinsでスタイルをリセト
+  rebuildPins();
 }
 
 function filterTree(val) { buildTree(val); }
@@ -1933,7 +2001,7 @@ async function loadRegionList() {
   listEl.innerHTML = '<div style="font-size:11px;color:#aaa;padding:8px">よみこみちゅう…</div>';
 
   try {
-    const { storage, sRef, listAll } = window._fb;
+    const { storage, sRef, listAll, getMetadata } = window._fb;
     const storageRef = sRef(storage, 'geojson/');
     const result = await listAll(storageRef);
 
@@ -1942,10 +2010,23 @@ async function loadRegionList() {
       return;
     }
 
-    listEl.innerHTML = result.items.map(item => `
+    // ファイルサイズをとってからひょうじ
+    const items = await Promise.all(result.items.map(async item => {
+      try {
+        const meta = await getMetadata(sRef(storage, item.fullPath));
+        const mb = (meta.size / 1024 / 1024).toFixed(1);
+        const warn = parseFloat(mb) >= 10 ? ' ⚠️' : '';
+        return { item, mb, warn };
+      } catch {
+        return { item, mb: '?', warn: '' };
+      }
+    }));
+
+    listEl.innerHTML = items.map(({ item, mb, warn }) => `
       <label>
         <input type="radio" value="${item.fullPath}" name="region-check">
         ${item.name.replace('.geojson','').replace('_圧縮','')}
+        <span style="font-size:10px;color:#888;margin-left:6px">${mb}MB${warn}</span>
       </label>
     `).join('');
   } catch(e) {
@@ -1973,7 +2054,10 @@ async function loadSelectedRegions() {
       addFeatures(geojson.features || [], check.value.split('/').pop());
       loadedFiles.push(check.value.split('/').pop());
     } catch(e) {
-      alert('よみこみしっぱい: ' + check.value);
+      spinner.classList.remove('open');
+      document.getElementById('region-modal').classList.add('open');
+      alert('よみこみしっぱいしました。\n\nファイルサイズがおおきいばあい、すまほではよみこめないことがあります。\n・すまほのめやす：5MB以下\n・PCのめやす：50MB以下\n\nPCでおためしください。');
+      return;
     }
   }
   spinner.classList.remove('open');
