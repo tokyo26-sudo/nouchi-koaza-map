@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.15</title>
+<title>農地ナビ地名地図 v5.16</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -79,6 +79,8 @@ body {
 }
 #header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.08em; flex: 1; }
 #version-badge { font-size: 10px; background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 3px; }
+#version-badge-mobile { display: none; font-size: 10px; background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 3px; }
+@media (max-width: 640px) { #version-badge-mobile { display: inline; } }
 #file-count { font-size: 11px; color: #aaa; }
 
 #main { flex: 1; display: flex; overflow: hidden; }
@@ -116,6 +118,21 @@ body {
 }
 #drop-area:hover, #drop-area.dragover { border-color: var(--accent); background: rgba(184,92,16,0.06); color: var(--accent); }
 #drop-area input { display: none; }
+
+/* スプリッター2（ドロップエリアとけんさくのあいだ） */
+.splitter2 {
+  height: 8px; background: var(--accent); cursor: ns-resize;
+  flex-shrink: 0;
+  position: relative; opacity: 0.5;
+}
+.splitter2::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px; height: 2px;
+  background: #fff; border-radius: 2px;
+  box-shadow: 0 -3px 0 #fff, 0 3px 0 #fff;
+}
+.splitter2:hover { opacity: 0.8; }
 
 /* スプリタ */
 #splitter {
@@ -531,6 +548,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
+  <span id="version-badge-mobile">v5.16</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -562,7 +580,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.15</span>
+    <span id="version-badge">v5.16</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -630,6 +648,9 @@ body {
         📂 GeoJSONをドロップ<br>または クリックして選択<br><span style="font-size:10px">複数ファイルOK</span>
       </div>
     </div>
+
+    <!-- スプリッター2（ドロップエリアとけんさくまどのあいだ） -->
+    <div id="splitter2" class="splitter2"></div>
 
     <!-- 検索 -->
     <div id="tree-search">
@@ -777,22 +798,33 @@ dropArea.addEventListener('drop', e => {
 fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
 function handleFiles(files) {
+  const spinner = document.getElementById('capture-spinner');
+  const spinLabel = document.getElementById('capture-spinner-label');
+  spinLabel.textContent = 'よみこみちゅう…';
+  spinner.classList.add('open');
+
+  let remaining = files.length;
+  if (remaining === 0) { spinner.classList.remove('open'); return; }
+
   Array.from(files).forEach(file => {
-    if (loadedFiles.includes(file.name)) return;
+    if (loadedFiles.includes(file.name)) { remaining--; if (remaining === 0) { spinner.classList.remove('open'); rebuildMap(); } return; }
     const reader = new FileReader();
     reader.onload = ev => {
       try {
         const geojson = JSON.parse(ev.target.result);
-        // メモがふくまれてたらlocalStorageにいれる
         if (geojson.memos && typeof geojson.memos === 'object') {
           loadMemosFromObj(geojson.memos);
         }
         addFeatures(geojson.features || [], file.name);
         loadedFiles.push(file.name);
         updateFileList();
-        rebuildMap();
       } catch(err) {
         alert('JSONよみこみエラー: ' + file.name);
+      }
+      remaining--;
+      if (remaining === 0) {
+        spinner.classList.remove('open');
+        rebuildMap();
       }
     };
     reader.readAsText(file, 'utf-8');
@@ -1899,6 +1931,11 @@ async function loadSelectedRegions() {
 
   document.getElementById('region-modal').classList.remove('open');
 
+  const spinner = document.getElementById('capture-spinner');
+  const spinLabel = document.getElementById('capture-spinner-label');
+  spinLabel.textContent = 'よみこみちゅう…';
+  spinner.classList.add('open');
+
   const { storage, sRef, getDownloadURL } = window._fb;
   for (const check of checks) {
     try {
@@ -1911,6 +1948,7 @@ async function loadSelectedRegions() {
       alert('よみこみしっぱい: ' + check.value);
     }
   }
+  spinner.classList.remove('open');
   updateFileList();
   rebuildMap();
   // よみこんだら「地域をえらぶ」ボタンをむこうにする
@@ -2149,6 +2187,55 @@ async function deleteFbMemoAndRefresh(key, memoId) {
   await deleteFbMemo(key, memoId);
 }
 
+
+// ============================================================
+// スプリッター2（ドロップエリアとこざツリーのあいだ）
+// ============================================================
+(function() {
+  const splitter2  = document.getElementById('splitter2');
+  const dropZone   = document.getElementById('drop-zone');
+
+  let dragging = false, startY = 0, startDropH = 0;
+
+  splitter2.addEventListener('mousedown', e => {
+    dragging = true;
+    startY = e.clientY;
+    startDropH = dropZone.offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    const newH = Math.max(0, startDropH + dy);
+    dropZone.style.height = newH + 'px';
+    dropZone.style.overflow = 'hidden';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  splitter2.addEventListener('touchstart', e => {
+    dragging = true;
+    startY = e.touches[0].clientY;
+    startDropH = dropZone.offsetHeight;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const dy = e.touches[0].clientY - startY;
+    const newH = Math.max(0, startDropH + dy);
+    dropZone.style.height = newH + 'px';
+    dropZone.style.overflow = 'hidden';
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => { dragging = false; });
+})();
 
 // ============================================================
 // スプリタ（ファイルリストとこざツリーのたかさをかえる）
