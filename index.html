@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.29</title>
+<title>農地ナビ地名地図 v5.30</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -599,7 +599,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.29</span>
+  <span id="version-badge-mobile">v5.30</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -631,7 +631,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.29</span>
+    <span id="version-badge">v5.30</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -1382,7 +1382,6 @@ function toggleOaza(el, oKey) {
 let _highlightedOazaKey = null;
 
 function highlightOaza(oKey) {
-  // おなじだいじをもういちどクリクしたらリセト
   if (_highlightedOazaKey === oKey) {
     _highlightedOazaKey = null;
     resetHighlight();
@@ -1390,10 +1389,14 @@ function highlightOaza(oKey) {
   }
   _highlightedOazaKey = oKey;
 
-  // まえのハイライトをリセト
-  resetHighlight();
+  // まずぜんぶのピンをデフォルトスタイルにもどす
+  Object.keys(pinMarkers).forEach(k => {
+    pinMarkers[k].forEach(m =>
+      m.setStyle({ radius: 2, color: '#2a7a3a', fillColor: '#4aaa5a', fillOpacity: 0.7, weight: 0.5, opacity: 0.6 })
+    );
+  });
 
-  // そのだいじのこざキーをぜんぶあつめてハイライト
+  // そのだいじのこざキーをぜんぶハイライト
   Object.keys(pinMarkers).forEach(k => {
     const d = koazaData[k];
     if (!d) return;
@@ -1405,11 +1408,6 @@ function highlightOaza(oKey) {
       });
     }
   });
-}
-
-function _clearHighlight() {
-  _highlightedOazaKey = null;
-  resetHighlight();
 }
 
 function filterTree(val) { buildTree(val); }
@@ -2667,6 +2665,7 @@ function clearAll() {
       <div style="font-size:11px;color:#aaa;padding:8px">よみこみちゅう…</div>
     </div>
     <button id="region-load-btn" onclick="loadSelectedRegions()">よみこむ</button>
+    <button onclick="document.getElementById('region-modal').classList.remove('open')" style="margin-top:6px;background:var(--paper2);color:var(--ink);border:1px solid var(--border);width:100%;padding:8px;border-radius:4px;cursor:pointer;font-family:'Noto Serif JP',serif;font-size:12px">キャンセル</button>
   </div>
 </div>
 
