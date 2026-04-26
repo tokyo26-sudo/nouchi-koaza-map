@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v5.3</title>
+<title>農地ナビ地名地図 v5.4</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -200,7 +200,17 @@ body {
   background: var(--ink);
   letter-spacing: 0.08em;
   margin-top: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
 }
+.city-item:hover { background: #333; }
+.city-item .city-toggle { font-size: 9px; transition: transform 0.2s; flex-shrink: 0; }
+.city-item.open .city-toggle { transform: rotate(90deg); }
+.city-oaza-list { display: none; }
+.city-oaza-list.open { display: block; }
 
 /* 地図 */
 #map { flex: 1; position: relative; }
@@ -537,7 +547,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.3</span>
+    <span id="version-badge">v5.4</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -596,7 +606,6 @@ body {
         <span id="font-koaza-val">12px</span>
       </div>
       <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
-      <button id="label-arrange-btn" onclick="arrangeLabels()">🗂 ラベル整とん</button>
     </div>
 
     <!-- ファイル読み込み -->
@@ -830,12 +839,11 @@ function toggleFile(filename) {
 }
 
 function rebuildMapFiltered() {
-  // 表示対象のフィーチャだけでマップを再構築
+  // 表示対象のフィーチャだけでマップを再構築（ズムいちはかえない）
   const originalFeatures = allFeatures;
   const filtered = allFeatures.filter(f => !hiddenFiles.has(f._source));
-  // 一時的にallFeaturesを差し替えてrebuildMap
   allFeatures = filtered;
-  rebuildMap();
+  rebuildMap(true); // skipFitBounds=true
   allFeatures = originalFeatures;
 }
 
@@ -910,7 +918,7 @@ function getPrefFromAddr(addr) {
 // ============================================================
 // 地図再構築
 // ============================================================
-function rebuildMap() {
+function rebuildMap(skipFitBounds = false) {
   layers.pin.clearLayers();
   layers.koaza.clearLayers();
   layers.oaza.clearLayers();
@@ -973,14 +981,16 @@ function rebuildMap() {
   // 小字ラベル・大字ラベルはrebuildLabels()で作成
   rebuildLabels();
 
-  // 全データにフィット
-  const allLats = allFeatures.map(f=>f.geometry?.coordinates?.[1]).filter(Boolean);
-  const allLngs = allFeatures.map(f=>f.geometry?.coordinates?.[0]).filter(Boolean);
-  if (allLats.length) {
-    map.fitBounds([
-      [Math.min(...allLats), Math.min(...allLngs)],
-      [Math.max(...allLats), Math.max(...allLngs)],
-    ], { padding: [30,30] });
+  // 全データにフィット（スキップフラグがないときだけ）
+  if (!skipFitBounds) {
+    const allLats = allFeatures.map(f=>f.geometry?.coordinates?.[1]).filter(Boolean);
+    const allLngs = allFeatures.map(f=>f.geometry?.coordinates?.[0]).filter(Boolean);
+    if (allLats.length) {
+      map.fitBounds([
+        [Math.min(...allLats), Math.min(...allLngs)],
+        [Math.max(...allLats), Math.max(...allLngs)],
+      ], { padding: [30,30] });
+    }
   }
 
   // レイヤー表示状態を反映
@@ -1205,7 +1215,12 @@ function buildTree(filter = '') {
 
   let html = '';
   Object.entries(byCity).forEach(([cityKey, cityGroup]) => {
-    html += `<div class="city-item">${cityGroup.city}</div>`;
+    const safeCityKey = cityKey.replace(/\|/g, '_');
+    const isOpen = fl ? 'open' : '';
+    html += `<div class="city-item ${isOpen}" onclick="toggleCity(this,'${safeCityKey}')">
+      <span class="city-toggle">▶</span>${cityGroup.city}
+    </div>`;
+    html += `<div class="city-oaza-list ${isOpen}" id="cl-${safeCityKey}">`;
     cityGroup.oazas.forEach(([oKey, g]) => {
     const oazaLabel = `${g.d.city} ${g.d.oaza}`;
     const koazaItems = g.keys
@@ -1231,11 +1246,18 @@ function buildTree(filter = '') {
         <span onclick="showTiban('${k}')" title="地番一覧" style="font-size:9px;color:#aaa;padding:2px 4px;cursor:pointer;border-radius:2px;border:1px solid #ddd;margin-left:4px;flex-shrink:0" onmouseover="this.style.background='rgba(26,90,122,0.1)'" onmouseout="this.style.background=''">地番</span>
       </div>`;
     });
-    html += `</div>`;
+    html += `</div>`;  // koaza-list
     });
+    html += `</div>`;  // city-oaza-list
   });
 
   tree.innerHTML = html || '<div style="padding:12px;font-size:11px;color:#aaa">該当なし</div>';
+}
+
+function toggleCity(el, safeCityKey) {
+  el.classList.toggle('open');
+  const list = document.getElementById('cl-' + safeCityKey);
+  if (list) list.classList.toggle('open');
 }
 
 function toggleOaza(el, oKey) {
@@ -2102,8 +2124,8 @@ async function deleteFbMemoAndRefresh(key, memoId) {
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
     const dy = e.clientY - startY;
-    const newFileH = Math.max(40, startFileH + dy);
-    const newTreeH = Math.max(60, startTreeH - dy);
+    const newFileH = Math.max(40, startFileH - dy);
+    const newTreeH = Math.max(60, startTreeH + dy);
     fileList.style.maxHeight = newFileH + 'px';
     fileList.style.height    = newFileH + 'px';
     tree.style.maxHeight     = newTreeH + 'px';
@@ -2128,8 +2150,8 @@ async function deleteFbMemoAndRefresh(key, memoId) {
   document.addEventListener('touchmove', e => {
     if (!dragging) return;
     const dy = e.touches[0].clientY - startY;
-    const newFileH = Math.max(40, startFileH + dy);
-    const newTreeH = Math.max(60, startTreeH - dy);
+    const newFileH = Math.max(40, startFileH - dy);
+    const newTreeH = Math.max(60, startTreeH + dy);
     fileList.style.maxHeight = newFileH + 'px';
     fileList.style.height    = newFileH + 'px';
     tree.style.maxHeight     = newTreeH + 'px';
