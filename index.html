@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.16</title>
+<title>農地ナビ地名地図 v5.23</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -548,7 +548,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.16</span>
+  <span id="version-badge-mobile">v5.23</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -580,7 +580,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.16</span>
+    <span id="version-badge">v5.23</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -2085,6 +2085,8 @@ function resetFontSize() {
 // ============================================================
 async function captureMap(format) {
   if (!confirm('⚠️ これはベータきのうです。\nうまくうごかないばあいがあります。\nつづけますか？')) return;
+
+  if (!confirm('🗺 ちずのタイルがじゅうぶんよみこまれたのをかくにんしてからOKをおしてください。\n\nよみこみがおわっていないとはいいろになることがあります。')) return;
 
   const spinner = document.getElementById('capture-spinner');
   const spinLabel = document.getElementById('capture-spinner-label');
