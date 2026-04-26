@@ -556,22 +556,6 @@ body {
       <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
     </div>
 
-    <!-- フォントサイズスライダ -->
-    <div id="font-ctrl">
-      <h4>文字サイズ</h4>
-      <div class="font-row">
-        <label>大字</label>
-        <input type="range" id="font-oaza" min="8" max="24" value="16" oninput="onFontChange()">
-        <span id="font-oaza-val">16px</span>
-      </div>
-      <div class="font-row">
-        <label>小字</label>
-        <input type="range" id="font-koaza" min="6" max="20" value="12" oninput="onFontChange()">
-        <span id="font-koaza-val">12px</span>
-      </div>
-      <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
-    </div>
-
     <!-- ファイル読み込み -->
     <div id="drop-zone">
       <div id="drop-area" onclick="document.getElementById('file-input').click()">
