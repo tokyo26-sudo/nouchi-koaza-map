@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v5.6</title>
+<title>農地ナビ地名地図 v5.7</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -547,7 +547,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.6</span>
+    <span id="version-badge">v5.7</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -1745,6 +1745,30 @@ async function doGoogleAuth() {
   }
 }
 
+async function doPasswordReset() {
+  const email = document.getElementById('auth-email').value.trim();
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+  if (!email) {
+    errEl.textContent = 'まずメールアドレスをにゅうりょくしてください';
+    return;
+  }
+  try {
+    const { auth } = window._fb;
+    const { sendPasswordResetEmail } = await import('https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js');
+    await sendPasswordResetEmail(auth, email);
+    errEl.style.color = '#2a7a3a';
+    errEl.textContent = 'リセトメルをおくりました！めるをかくにんしてください';
+  } catch(e) {
+    errEl.style.color = '#c00';
+    const msgs = {
+      'auth/user-not-found':  'このメールはとうろくされていません',
+      'auth/invalid-email':   'メールアドレスのかたちがただしくありません',
+    };
+    errEl.textContent = msgs[e.code] || e.message;
+  }
+}
+
 async function doSignOut() {
   const { auth, signOut } = window._fb;
   await signOut(auth);
@@ -2367,6 +2391,12 @@ function clearAll() {
       Googleでログイン
     </button>
     <div id="auth-error"></div>
+    <div style="text-align:center;margin-top:8px">
+      <span onclick="doPasswordReset()"
+        style="font-size:10px;color:#888;cursor:pointer;text-decoration:underline">
+        パスワードをわすれた方はこちら
+      </span>
+    </div>
   </div>
 </div>
 
