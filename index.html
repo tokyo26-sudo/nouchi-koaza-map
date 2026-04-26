@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v5.5</title>
+<title>農地ナビ地名地図 v5.6</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -547,7 +547,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.5</span>
+    <span id="version-badge">v5.6</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -655,6 +655,14 @@ body {
 // 地図初期化
 // ============================================================
 const map = L.map('map', { zoomControl: true }).setView([27.4, 128.9], 12);
+
+// アクセスしたひとのいちをよみこむ
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => map.setView([pos.coords.latitude, pos.coords.longitude], 12),
+    ()  => {} // きょかしなかたらそのまま
+  );
+}
 
 const baseLayers = {
   '地理院（標準）': L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
