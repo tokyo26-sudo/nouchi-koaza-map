@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.25</title>
+<title>農地ナビ地名地図 v5.26</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -486,6 +486,34 @@ body {
 .hdrop-item:last-child { border-bottom: none; }
 .hdrop-item:hover { background: var(--paper2); }
 
+/* カスタムかくにんダイアログ */
+#custom-dialog {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 9999;
+  align-items: center; justify-content: center;
+}
+#custom-dialog.open { display: flex; }
+#custom-dialog-box {
+  background: var(--paper); border-radius: 6px;
+  padding: 20px; max-width: 340px; width: 90%;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  font-family: 'Noto Serif JP', serif;
+}
+#custom-dialog-msg {
+  font-size: 12px; line-height: 1.8; margin-bottom: 16px;
+  color: var(--ink); white-space: pre-wrap;
+}
+#custom-dialog-btns {
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+#custom-dialog-btns button {
+  padding: 6px 16px; border-radius: 3px; cursor: pointer;
+  font-size: 12px; font-family: 'Noto Serif JP', serif;
+  border: 1px solid var(--border);
+}
+#custom-dialog-ok { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
+#custom-dialog-cancel { background: var(--paper2); color: var(--ink); }
+
 /* キャプチャくるくるスピナ */
 #capture-spinner {
   display: none; position: fixed; inset: 0;
@@ -548,7 +576,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.25</span>
+  <span id="version-badge-mobile">v5.26</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -580,7 +608,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.25</span>
+    <span id="version-badge">v5.26</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -2083,17 +2111,40 @@ function resetFontSize() {
 // ============================================================
 // JPG・PDF保存（β）
 // ============================================================
+// カスタムかくにんダイアログ
+function showDialog(msg) {
+  return new Promise(resolve => {
+    const dialog  = document.getElementById('custom-dialog');
+    const msgEl   = document.getElementById('custom-dialog-msg');
+    const okBtn   = document.getElementById('custom-dialog-ok');
+    const cancelBtn = document.getElementById('custom-dialog-cancel');
+    msgEl.textContent = msg;
+    dialog.classList.add('open');
+    const cleanup = (result) => {
+      dialog.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+    const onOk     = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
 async function captureMap(format) {
-  if (!confirm('⚠️ これはベータきのうです。\nうまくうごかないばあいがあります。\nつづけますか？')) return;
+  const ok1 = await showDialog('⚠️ これはベータきのうです。\nうまくうごかないばあいがあります。\nつづけますか？');
+  if (!ok1) return;
 
-  if (!confirm('🗺 ちずのタイルがじゅうぶんよみこまれたのをかくにんしてからOKをおしてください。\n\nよみこみがおわっていないとはいいろになることがあります。')) return;
+  const ok2 = await showDialog('🗺 ちずのタイルがじゅうぶんよみこまれたのをかくにんしてからOKをおしてください。\n\nよみこみがおわっていないとはいいろになることがあります。');
+  if (!ok2) return;
 
-  const spinner = document.getElementById('capture-spinner');
+  const spinner  = document.getElementById('capture-spinner');
   const spinLabel = document.getElementById('capture-spinner-label');
   spinLabel.textContent = format === 'jpg' ? 'JPGキャプチャちゅう…' : 'PDFキャプチャちゅう…';
   spinner.classList.add('open');
 
-  // スピナがひょうじされるまでひとフレームまつ
   await new Promise(r => setTimeout(r, 100));
 
   const mapEl = document.getElementById('map');
@@ -2109,9 +2160,9 @@ async function captureMap(format) {
     } else {
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'px',
-        format: [canvas.width/2, canvas.height/2] });
+        format: [canvas.width, canvas.height] });
       pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0,
-        canvas.width/2, canvas.height/2);
+        canvas.width, canvas.height);
       pdf.save('農地ナビ地名地図_' + getTimestamp() + '.pdf');
     }
   } catch(e) {
@@ -2482,6 +2533,17 @@ function clearAll() {
   _unlockRegionSelect();
 }
 </script>
+
+<!-- カスタムかくにんダイアログ -->
+<div id="custom-dialog">
+  <div id="custom-dialog-box">
+    <div id="custom-dialog-msg"></div>
+    <div id="custom-dialog-btns">
+      <button id="custom-dialog-cancel">キャンセル</button>
+      <button id="custom-dialog-ok">OK</button>
+    </div>
+  </div>
+</div>
 
 <!-- キャプチャくるくるスピナ -->
 <div id="capture-spinner">
