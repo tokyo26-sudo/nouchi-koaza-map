@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v5.0</title>
+<title>農地ナビ地名地図 v5.2</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -355,28 +355,153 @@ body {
 #font-reset { font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer;
   border: 1px solid var(--border); background: var(--paper2); margin-top: 2px;
   font-family: 'Noto Serif JP', serif; }
+
+/* ============================================================
+   ヘッダボタン
+   ============================================================ */
+#header-btns {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+}
+.hbtn {
+  font-size: 10px; padding: 3px 8px; border-radius: 3px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1);
+  color: #fff; font-family: 'Noto Serif JP', serif; white-space: nowrap;
+  transition: background 0.15s; position: relative;
+}
+.hbtn:hover { background: rgba(255,255,255,0.2); }
+.hbtn.danger { border-color: #e74c3c; color: #e74c3c; }
+.hbtn.danger:hover { background: rgba(231,76,60,0.2); }
+.hdrop {
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 2px;
+  background: var(--paper); border: 1px solid var(--border);
+  border-radius: 4px; z-index: 2000; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2); min-width: 160px;
+}
+.hdrop.open { display: block; }
+.hdrop-item {
+  padding: 7px 14px; font-size: 10px; cursor: pointer; color: var(--ink);
+  border-bottom: 1px solid var(--border);
+  font-family: 'Noto Serif JP', serif;
+}
+.hdrop-item:last-child { border-bottom: none; }
+.hdrop-item:hover { background: var(--paper2); }
+
+/* すまほたいおう */
+#hamburger {
+  display: none; cursor: pointer; font-size: 18px; color: #fff;
+  padding: 0 6px; background: none; border: none;
+}
+@media (max-width: 640px) {
+  #hamburger { display: block; }
+  #sidebar {
+    display: none; position: fixed; inset: 0; z-index: 3000;
+    width: 100% !important; overflow-y: auto;
+  }
+  #sidebar.open { display: flex; }
+  #sidebar-close {
+    display: block !important;
+  }
+  #header-btns { display: none; }
+}
+#sidebar-close {
+  display: none; padding: 6px 12px; font-size: 11px; cursor: pointer;
+  border: none; background: var(--accent); color: #fff; width: 100%;
+  font-family: 'Noto Serif JP', serif; flex-shrink: 0;
+}
+
+/* ヘッダボタン */
+#header-btns {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+}
+.hbtn {
+  font-size: 10px; padding: 3px 8px; border-radius: 3px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1);
+  color: #fff; font-family: 'Noto Serif JP', serif; white-space: nowrap;
+  transition: background 0.15s; position: relative;
+}
+.hbtn:hover { background: rgba(255,255,255,0.2); }
+.hbtn.danger { border-color: #e74c3c; color: #e74c3c; }
+.hbtn.danger:hover { background: rgba(231,76,60,0.2); }
+.hdrop {
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 2px;
+  background: var(--paper); border: 1px solid var(--border);
+  border-radius: 4px; z-index: 2000; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2); min-width: 180px;
+}
+.hdrop.open { display: block; }
+.hdrop-item {
+  padding: 7px 14px; font-size: 10px; cursor: pointer; color: var(--ink);
+  border-bottom: 1px solid var(--border);
+  font-family: 'Noto Serif JP', serif;
+}
+.hdrop-item:last-child { border-bottom: none; }
+.hdrop-item:hover { background: var(--paper2); }
+
+/* ハンバガ・すまほ */
+#hamburger {
+  display: none; cursor: pointer; font-size: 18px; color: #fff;
+  padding: 0 6px; background: none; border: none;
+}
+#sidebar-close {
+  display: none; padding: 6px 12px; font-size: 11px; cursor: pointer;
+  border: none; background: var(--accent); color: #fff; width: 100%;
+  font-family: 'Noto Serif JP', serif; flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  #hamburger { display: block; }
+  #sidebar {
+    display: none; position: fixed; inset: 0; z-index: 3000;
+    width: 100% !important; overflow-y: auto;
+  }
+  #sidebar.open { display: flex; }
+  #sidebar-close { display: block !important; }
+  #header-btns { display: none; }
+}
 </style>
 </head>
 <body>
 
 <div id="header">
+  <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <a href="https://map.maff.go.jp/" target="_blank" rel="noopener" style="
-    font-size:10px;background:rgba(255,255,255,0.15);color:#fff;
-    padding:3px 8px;border-radius:3px;text-decoration:none;
-    border:1px solid rgba(255,255,255,0.3);white-space:nowrap;
-    transition:background 0.15s;
-  " onmouseover="this.style.background='rgba(255,255,255,0.25)'"
-    onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-    eMAFF農地ナビ ↗
-  </a>
-  <span id="version-badge">v5.0</span>
-  <span id="file-count">ファイル未読込</span>
+  <div id="header-btns">
+    <div style="position:relative">
+      <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
+      <div id="hdrop-save" class="hdrop">
+        <div class="hdrop-item" onclick="saveGeoJSON(false);closeHDrops()">💾 圧縮保存（小さい）</div>
+        <div class="hdrop-item" onclick="saveGeoJSON(true);closeHDrops()">💾 フル保存（そのまま）</div>
+      </div>
+    </div>
+    <div style="position:relative">
+      <button class="hbtn" onclick="toggleHDrop('hdrop-list')">📋 リスト ▾</button>
+      <div id="hdrop-list" class="hdrop">
+        <div class="hdrop-item" onclick="downloadList();closeHDrops()">📋 小字リストをテキストで保存</div>
+        <div class="hdrop-item" onclick="downloadListCSV();closeHDrops()">📊 小字リストをCSVで保存</div>
+      </div>
+    </div>
+    <div style="position:relative">
+      <button class="hbtn" onclick="toggleHDrop('hdrop-export')">🗺 出力 ▾</button>
+      <div id="hdrop-export" class="hdrop">
+        <div class="hdrop-item" onclick="downloadMyMapCSV();closeHDrops()">🗺 Googleマイマップ用CSV</div>
+        <div class="hdrop-item" onclick="downloadKML();closeHDrops()">🗺 KML</div>
+        <div class="hdrop-item" onclick="captureMap('jpg');closeHDrops()">📷 JPGで保存 β</div>
+        <div class="hdrop-item" onclick="captureMap('pdf');closeHDrops()">📄 PDFで保存 β</div>
+      </div>
+    </div>
+    <button class="hbtn danger" onclick="clearAll()">🗑 クリア</button>
+    <a href="https://map.maff.go.jp/" target="_blank" rel="noopener" style="
+      font-size:10px;background:rgba(255,255,255,0.15);color:#fff;
+      padding:3px 8px;border-radius:3px;text-decoration:none;
+      border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
+      eMAFF農地ナビ ↗
+    </a>
+    <span id="version-badge">v5.2</span>
+    <span id="file-count">ファイル未読込</span>
+  </div>
 </div>
-
 <div id="main">
   <div id="sidebar">
-
+    <button id="sidebar-close" onclick="toggleSidebar()">✕ とじる</button>
 
     <!-- ログインセクション -->
     <div id="login-section">
@@ -393,23 +518,7 @@ body {
       </div>
     </div>
 
-    <!-- フォントサイズスライダ -->
-    <div id="font-ctrl">
-      <h4>文字サイズ</h4>
-      <div class="font-row">
-        <label>大字</label>
-        <input type="range" id="font-oaza" min="8" max="24" value="16" oninput="onFontChange()">
-        <span id="font-oaza-val">16px</span>
-      </div>
-      <div class="font-row">
-        <label>小字</label>
-        <input type="range" id="font-koaza" min="6" max="20" value="12" oninput="onFontChange()">
-        <span id="font-koaza-val">12px</span>
-      </div>
-      <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
-    </div>
-
-    <!-- ① レイヤーコントロール（一番上） -->
+    <!-- レイヤーコントロール -->
     <div id="layer-ctrl">
       <h3>表示レイヤー</h3>
       <div class="layer-row">
@@ -431,31 +540,44 @@ body {
       </div>
     </div>
 
+    <!-- フォントサイズスライダ -->
+    <div id="font-ctrl">
+      <h4>文字サイズ</h4>
+      <div class="font-row">
+        <label>大字</label>
+        <input type="range" id="font-oaza" min="8" max="24" value="16" oninput="onFontChange()">
+        <span id="font-oaza-val">16px</span>
+      </div>
+      <div class="font-row">
+        <label>小字</label>
+        <input type="range" id="font-koaza" min="6" max="20" value="12" oninput="onFontChange()">
+        <span id="font-koaza-val">12px</span>
+      </div>
+      <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
+    </div>
+
+    <!-- フォントサイズスライダ -->
+    <div id="font-ctrl">
+      <h4>文字サイズ</h4>
+      <div class="font-row">
+        <label>大字</label>
+        <input type="range" id="font-oaza" min="8" max="24" value="16" oninput="onFontChange()">
+        <span id="font-oaza-val">16px</span>
+      </div>
+      <div class="font-row">
+        <label>小字</label>
+        <input type="range" id="font-koaza" min="6" max="20" value="12" oninput="onFontChange()">
+        <span id="font-koaza-val">12px</span>
+      </div>
+      <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
+    </div>
+
     <!-- ファイル読み込み -->
     <div id="drop-zone">
       <div id="drop-area" onclick="document.getElementById('file-input').click()">
         <input type="file" id="file-input" accept=".geojson,.json" multiple>
         📂 GeoJSONをドロップ<br>または クリックして選択<br><span style="font-size:10px">複数ファイルOK</span>
       </div>
-    </div>
-
-    <!-- 読み込みファイル一覧 -->
-    <div id="file-list"></div>
-
-    <!-- アクションボタン -->
-    <div id="action-btns">
-      <div style="position:relative;display:inline-block">
-        <button class="btn" onclick="toggleSaveMenu()" id="save-btn">💾 データ保存 ▾</button>
-        <div id="save-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--paper);border:1px solid var(--border);border-radius:4px;z-index:1000;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15)">
-          <div onclick="saveGeoJSON(false)" style="padding:6px 12px;font-size:10px;cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background='rgba(184,92,16,0.08)'" onmouseout="this.style.background=''">💾 圧縮保存（小さい）</div>
-          <div onclick="saveGeoJSON(true)" style="padding:6px 12px;font-size:10px;cursor:pointer" onmouseover="this.style.background='rgba(184,92,16,0.08)'" onmouseout="this.style.background=''">💾 フル保存（そのまま）</div>
-        </div>
-      </div>
-      <button class="btn" onclick="downloadList()">📋 小字リストDL</button>
-      <button class="btn" onclick="downloadMyMapCSV()">🗺 Googleマイマップ用CSV</button><button class="btn" onclick="downloadKML()">🗺 KML</button>
-      <button class="btn danger" onclick="clearAll()">🗑 クリア</button>
-      <button class="btn" onclick="captureMap('jpg')" title="ベータきのう：うまくうごかないばあいがあります">📷 JPGで保存 β</button>
-      <button class="btn" onclick="captureMap('pdf')" title="ベータきのう：うまくうごかないばあいがあります">📄 PDFで保存 β</button>
     </div>
 
     <!-- 検索 -->
@@ -465,6 +587,9 @@ body {
 
     <!-- 地名ツリー -->
     <div id="tree"></div>
+
+    <!-- 読み込みファイル一覧（さいご） -->
+    <div id="file-list"></div>
   </div>
 
   <!-- 地番モーダル -->
@@ -1267,8 +1392,12 @@ function downloadList() {
       g.items
         .sort((a,b) => a.koaza.localeCompare(b.koaza,'ja'))
         .forEach(d => {
-          const memo = getMemo(`${d.pref}|${d.city}|${d.oaza}|${d.koaza}`);
-          const memoStr = memo ? `　※${memo}` : '';
+          const key = `${d.pref}|${d.city}|${d.oaza}|${d.koaza}`;
+          const localMemo = getMemo(key);
+          const fbMemoList = typeof getFbMemos === 'function' ? getFbMemos(key) : [];
+          let memoStr = '';
+          if (localMemo) memoStr += `\n    [ローカル] ${localMemo}`;
+          fbMemoList.forEach(m => { memoStr += `\n    [${m.name} ${m.date}] ${m.text}`; });
           text += `  ${d.koaza}（${d.count}件）${memoStr}\n`;
         });
       text += '\n';
@@ -1553,6 +1682,19 @@ async function doGoogleAuth() {
 async function doSignOut() {
   const { auth, signOut } = window._fb;
   await signOut(auth);
+  // ログアウトしたらデータをぜんぶクリア
+  allFeatures = []; loadedFiles = [];
+  koazaData = {}; oazaData = {}; pinMarkers = {};
+  selectedKoazaKey = null;
+  hiddenFiles.clear();
+  layers.pin.clearLayers();
+  layers.koaza.clearLayers();
+  layers.oaza.clearLayers();
+  updateFileList();
+  updateStats();
+  document.getElementById('tree').innerHTML = '';
+  document.getElementById('empty-msg').style.display = 'block';
+  document.getElementById('search-input').value = '';
 }
 
 // ============================================================
@@ -1788,6 +1930,141 @@ async function submitFbMemo(key) {
 async function deleteFbMemoAndRefresh(key, memoId) {
   if (!confirm('このメモをさくじょしますか？')) return;
   await deleteFbMemo(key, memoId);
+}
+
+
+// ============================================================
+// ヘッダドロプダウン・ハンバガメニ
+// ============================================================
+function toggleHDrop(id) {
+  const el = document.getElementById(id);
+  const isOpen = el.classList.contains('open');
+  closeHDrops();
+  if (!isOpen) el.classList.add('open');
+}
+
+function closeHDrops() {
+  document.querySelectorAll('.hdrop').forEach(d => d.classList.remove('open'));
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.hbtn') && !e.target.closest('.hdrop')) closeHDrops();
+});
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ============================================================
+// 小字リストCSVでDL（Firebaseメモもふくむ）
+// ============================================================
+function downloadListCSV() {
+  if (Object.keys(koazaData).length === 0) { alert('データがありません'); return; }
+
+  const bom = String.fromCharCode(0xFEFF);
+  const rows = [['市町村', '大字', '小字', '農地件数', 'ローカルメモ', 'みんなのメモ'].join(',')];
+
+  const grouped = {};
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const oazaKey = `${d.pref}|${d.city}|${d.oaza}`;
+    if (!grouped[oazaKey]) grouped[oazaKey] = { d, items: [] };
+    grouped[oazaKey].items.push({ key, d });
+  });
+
+  Object.entries(grouped)
+    .sort(([,a],[,b]) => a.d.oaza.localeCompare(b.d.oaza, 'ja'))
+    .forEach(([,g]) => {
+      g.items
+        .sort((a,b) => a.d.koaza.localeCompare(b.d.koaza, 'ja'))
+        .forEach(({ key, d }) => {
+          const localMemo = getMemo(key);
+          const fbMemoList = typeof getFbMemos === 'function' ? getFbMemos(key) : [];
+          const fbMemoStr = fbMemoList.map(m => `${m.text}（${m.name} ${m.date}）`).join(' / ');
+          rows.push([
+            `"${d.city}"`,
+            `"${d.oaza}"`,
+            `"${d.koaza}"`,
+            d.count,
+            `"${localMemo.replace(/"/g,'""')}"`,
+            `"${fbMemoStr.replace(/"/g,'""')}"`
+          ].join(','));
+        });
+    });
+
+  const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `小字リスト_${getTopCity()}_${getTimestamp()}.csv`;
+  a.click();
+}
+
+
+// ============================================================
+// ヘッダドロプダウン
+// ============================================================
+function toggleHDrop(id) {
+  const el = document.getElementById(id);
+  const isOpen = el.classList.contains('open');
+  closeHDrops();
+  if (!isOpen) el.classList.add('open');
+}
+
+function closeHDrops() {
+  document.querySelectorAll('.hdrop').forEach(d => d.classList.remove('open'));
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.hbtn') && !e.target.closest('.hdrop')) closeHDrops();
+});
+
+// ============================================================
+// ハンバガメニ（すまほ）
+// ============================================================
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ============================================================
+// 小字リストCSVでDL
+// ============================================================
+function downloadListCSV() {
+  if (Object.keys(koazaData).length === 0) { alert('データがありません'); return; }
+
+  const bom = String.fromCharCode(0xFEFF);
+  const rows = [['市町村', '大字', '小字', '農地件数', 'ローカルメモ', 'みんなのメモ'].join(',')];
+
+  const grouped = {};
+  Object.entries(koazaData).forEach(([key, d]) => {
+    const oazaKey = `${d.pref}|${d.city}|${d.oaza}`;
+    if (!grouped[oazaKey]) grouped[oazaKey] = { d, items: [] };
+    grouped[oazaKey].items.push({ key, d });
+  });
+
+  Object.entries(grouped)
+    .sort(([,a],[,b]) => a.d.oaza.localeCompare(b.d.oaza, 'ja'))
+    .forEach(([,g]) => {
+      g.items
+        .sort((a,b) => a.d.koaza.localeCompare(b.d.koaza, 'ja'))
+        .forEach(({ key, d }) => {
+          const localMemo = getMemo(key);
+          const fbMemoList = typeof getFbMemos === 'function' ? getFbMemos(key) : [];
+          const fbMemoStr = fbMemoList.map(m => `${m.text}（${m.name} ${m.date}）`).join(' / ');
+          rows.push([
+            `"${d.city}"`,
+            `"${d.oaza}"`,
+            `"${d.koaza}"`,
+            d.count,
+            `"${localMemo.replace(/"/g,'""')}"`,
+            `"${fbMemoStr.replace(/"/g,'""')}"`
+          ].join(','));
+        });
+    });
+
+  const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `小字リスト_${getTopCity()}_${getTimestamp()}.csv`;
+  a.click();
 }
 
 // ============================================================
