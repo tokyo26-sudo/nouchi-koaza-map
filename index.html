@@ -3,9 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v4.7</title>
+<title>農地ナビ地名地図 v5.0</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js';
+import { getAuth, onAuthStateChanged, signOut,
+         GoogleAuthProvider, signInWithPopup,
+         createUserWithEmailAndPassword, signInWithEmailAndPassword,
+         updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js';
+import { getDatabase, ref, set, get, onValue, push, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-database.js';
+import { getStorage, ref as sRef, listAll, getDownloadURL, uploadBytes }
+  from 'https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBSqXsK0Oc8IOYzoEjVpnYdHvoAU2cMkYs",
+  authDomain: "nouchi-koaza-map.firebaseapp.com",
+  databaseURL: "https://nouchi-koaza-map-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "nouchi-koaza-map",
+  storageBucket: "nouchi-koaza-map.firebasestorage.app",
+  messagingSenderId: "71869593744",
+  appId: "1:71869593744:web:d4734739d4c9e25e998015"
+};
+
+const app     = initializeApp(firebaseConfig);
+const auth    = getAuth(app);
+const db      = getDatabase(app);
+const storage = getStorage(app);
+
+window._fb = { auth, db, storage, ref, set, get, onValue, push, serverTimestamp,
+               sRef, listAll, getDownloadURL, uploadBytes,
+               GoogleAuthProvider, signInWithPopup,
+               createUserWithEmailAndPassword, signInWithEmailAndPassword,
+               updateProfile, signOut, onAuthStateChanged };
+
+onAuthStateChanged(auth, user => {
+  window._fbUser = user || null;
+  if (typeof window.onFbAuthChange === 'function') window.onFbAuthChange(user);
+});
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&display=swap');
 
@@ -197,6 +235,126 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ============================================================
+   ログイン・モド関連
+   ============================================================ */
+#login-section {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+  flex-shrink: 0;
+}
+#login-btn-area button {
+  width: 100%; margin-bottom: 4px; font-size: 10px;
+  padding: 5px 8px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--paper);
+  font-family: 'Noto Serif JP', serif; color: var(--ink);
+  transition: background 0.15s;
+}
+#login-btn-area button:hover { background: var(--paper2); }
+#login-btn-google { border-color: #4285f4 !important; color: #4285f4 !important; }
+#logged-in-area { font-size: 10px; color: var(--ink); }
+#logged-in-area .user-name { font-weight: 600; margin-bottom: 4px; }
+#logged-in-area button {
+  font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--paper2);
+  font-family: 'Noto Serif JP', serif;
+}
+#mode-badge {
+  font-size: 9px; padding: 1px 6px; border-radius: 3px; margin-left: 6px;
+  background: var(--accent); color: #fff;
+}
+
+/* ログインモーダル */
+#auth-modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 9999;
+  align-items: center; justify-content: center;
+}
+#auth-modal.open { display: flex; }
+#auth-box {
+  background: var(--paper); border-radius: 6px;
+  padding: 20px; width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+#auth-box h3 { font-size: 13px; margin-bottom: 12px; }
+#auth-box input {
+  width: 100%; margin-bottom: 8px; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 3px;
+  font-family: 'Noto Serif JP', serif; font-size: 12px;
+  background: #fff;
+}
+#auth-box .auth-btn {
+  width: 100%; padding: 7px; border-radius: 3px; cursor: pointer;
+  border: none; font-family: 'Noto Serif JP', serif; font-size: 12px;
+  margin-bottom: 6px;
+}
+#auth-box .auth-btn-primary { background: var(--accent); color: #fff; }
+#auth-box .auth-btn-google {
+  background: #fff; color: #444;
+  border: 1px solid #ddd !important;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+#auth-box .auth-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+#auth-box .auth-tab {
+  flex: 1; padding: 4px; font-size: 11px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--paper2); text-align: center;
+}
+#auth-box .auth-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+#auth-error { font-size: 10px; color: #c00; margin-top: 4px; }
+#auth-close { float: right; cursor: pointer; font-size: 14px; color: #aaa; }
+
+/* ちいきえらぶモーダル */
+#region-modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 9998;
+  align-items: center; justify-content: center;
+}
+#region-modal.open { display: flex; }
+#region-box {
+  background: var(--paper); border-radius: 6px;
+  padding: 20px; width: 340px; max-height: 80vh;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  display: flex; flex-direction: column;
+}
+#region-box h3 { font-size: 13px; margin-bottom: 12px; }
+#region-list { flex: 1; overflow-y: auto; margin-bottom: 12px; }
+#region-list label {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 4px; border-bottom: 1px solid var(--border);
+  cursor: pointer; font-size: 11px;
+}
+#region-list label:hover { background: var(--paper2); }
+#region-load-btn {
+  width: 100%; padding: 8px; border-radius: 3px; cursor: pointer;
+  border: none; background: var(--accent); color: #fff;
+  font-family: 'Noto Serif JP', serif; font-size: 12px;
+}
+
+/* ドロプエリアのグレアウト */
+#drop-zone.grayout {
+  opacity: 0.4; pointer-events: none;
+}
+#drop-zone.grayout::after {
+  content: 'ログインモードではStorageからよみこみます';
+  display: block; font-size: 9px; color: #aaa; text-align: center;
+  margin-top: 4px;
+}
+
+/* フォントサイズスライダ */
+#font-ctrl {
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  background: var(--paper); flex-shrink: 0;
+}
+#font-ctrl h4 { font-size: 10px; margin-bottom: 6px; color: #888; }
+.font-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 10px; }
+.font-row label { width: 32px; flex-shrink: 0; }
+.font-row input[type=range] { flex: 1; }
+.font-row span { width: 28px; text-align: right; flex-shrink: 0; }
+#font-reset { font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--paper2); margin-top: 2px;
+  font-family: 'Noto Serif JP', serif; }
 </style>
 </head>
 <body>
@@ -212,12 +370,44 @@ body {
     onmouseout="this.style.background='rgba(255,255,255,0.15)'">
     eMAFF農地ナビ ↗
   </a>
-  <span id="version-badge">v4.7</span>
+  <span id="version-badge">v5.0</span>
   <span id="file-count">ファイル未読込</span>
 </div>
 
 <div id="main">
   <div id="sidebar">
+
+
+    <!-- ログインセクション -->
+    <div id="login-section">
+      <div id="login-btn-area">
+        <button id="login-btn-google" onclick="openAuthModal('google')">🔑 Googleでログイン</button>
+        <button onclick="openAuthModal('email')">📧 メール／パスワードでログイン</button>
+      </div>
+      <div id="logged-in-area" style="display:none">
+        <div class="user-name">👤 <span id="user-display-name"></span><span id="mode-badge">共有モード</span></div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button onclick="openRegionModal()">🗾 地域をえらぶ</button>
+          <button onclick="doSignOut()">ログアウト</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- フォントサイズスライダ -->
+    <div id="font-ctrl">
+      <h4>文字サイズ</h4>
+      <div class="font-row">
+        <label>大字</label>
+        <input type="range" id="font-oaza" min="8" max="24" value="16" oninput="onFontChange()">
+        <span id="font-oaza-val">16px</span>
+      </div>
+      <div class="font-row">
+        <label>小字</label>
+        <input type="range" id="font-koaza" min="6" max="20" value="12" oninput="onFontChange()">
+        <span id="font-koaza-val">12px</span>
+      </div>
+      <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
+    </div>
 
     <!-- ① レイヤーコントロール（一番上） -->
     <div id="layer-ctrl">
@@ -264,6 +454,8 @@ body {
       <button class="btn" onclick="downloadList()">📋 小字リストDL</button>
       <button class="btn" onclick="downloadMyMapCSV()">🗺 Googleマイマップ用CSV</button><button class="btn" onclick="downloadKML()">🗺 KML</button>
       <button class="btn danger" onclick="clearAll()">🗑 クリア</button>
+      <button class="btn" onclick="captureMap('jpg')" title="ベータきのう：うまくうごかないばあいがあります">📷 JPGで保存 β</button>
+      <button class="btn" onclick="captureMap('pdf')" title="ベータきのう：うまくうごかないばあいがあります">📄 PDFで保存 β</button>
     </div>
 
     <!-- 検索 -->
@@ -710,10 +902,25 @@ map.on('zoomend', rebuildLabels);
 // ============================================================
 function getLabelSizes() {
   const z = map.getZoom();
-  if (z >= 16) return { koaza: 14, koazaSub: 11, oaza: 16 };
-  if (z >= 14) return { koaza: 12, koazaSub: 9,  oaza: 14 };
-  if (z >= 12) return { koaza: 10, koazaSub: 8,  oaza: 12 };
-  return              { koaza: 9,  koazaSub: 7,  oaza: 10 };
+  let base;
+  if (z >= 16) base = { koaza: 14, koazaSub: 11, oaza: 16 };
+  else if (z >= 14) base = { koaza: 12, koazaSub: 9,  oaza: 14 };
+  else if (z >= 12) base = { koaza: 10, koazaSub: 8,  oaza: 12 };
+  else base = { koaza: 9, koazaSub: 7, oaza: 10 };
+  // カスタムフォントサイズをてきよう
+  if (typeof customFont !== 'undefined') {
+    if (customFont.oaza  !== null) base.oaza  = customFont.oaza;
+    if (customFont.koaza !== null) { base.koaza = customFont.koaza; base.koazaSub = Math.max(6, customFont.koaza - 2); }
+  }
+  return base;
+}
+
+// メモかずでいろをかえる
+function getMemoColor(count) {
+  if (count === 0) return null;
+  if (count === 1) return '#e8d44d';   // うすきいろ
+  if (count <= 3)  return '#e8943a';   // オレンジ
+  return '#c0392b';                     // あかっぽい
 }
 
 function rebuildLabels() {
@@ -734,18 +941,17 @@ function rebuildLabels() {
         margin-left:-50%;display:inline-block;">${d.koaza === d.oaza ? '' : d.koaza}</div>`,
       iconAnchor: [0, sz.koaza + 2],
     });
-    const koazaMarker = L.marker([d.centerLat, d.centerLng], { icon });
-    const memoVal = getMemo(key);
-    const memoHtml = `
-      <b>${d.oaza === d.koaza ? d.oaza : d.oaza + ' ' + d.koaza}</b><br>農地 ${d.count}件
-      <br><textarea id="memo-${key.replace(/\|/g,'__')}"
-        style="width:180px;height:54px;margin-top:6px;font-size:11px;
-          font-family:'Noto Serif JP',serif;border:1px solid #c8b89a;
-          border-radius:3px;padding:3px 5px;resize:vertical;background:#f9f5ee;"
-        placeholder="よみかた・メモをここに…"
-        oninput="saveMemo('${key}', this.value)"
-      >${memoVal}</textarea>`;
-    koazaMarker.bindPopup(memoHtml, { minWidth: 200 });
+    const memoCount = typeof getMemoCount === 'function' ? getMemoCount(key) : 0;
+    const memoColor = typeof getMemoColor === 'function' ? getMemoColor(memoCount) : null;
+    const koazaText = d.koaza === d.oaza ? '' : d.koaza;
+    const memoCountBadge = memoCount > 0 ? ` <span style="font-size:9px;background:${memoColor};color:#fff;border-radius:8px;padding:0 4px;margin-left:2px">${memoCount}</span>` : '';
+    const koazaIconHtml = `<div style="background:${memoColor || 'rgba(26,90,122,0.82)'};color:#fff;font-size:${sz.koaza}px;
+      font-family:'Noto Serif JP',serif;padding:2px 5px;border-radius:3px;
+      white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);
+      margin-left:-50%;display:inline-block;">${koazaText}${memoCountBadge}</div>`;
+    const koazaIcon2 = L.divIcon({ className: '', html: koazaIconHtml, iconAnchor: [0, sz.koaza + 2] });
+    const koazaMarker = L.marker([d.centerLat, d.centerLng], { icon: koazaIcon2 });
+    koazaMarker.bindPopup(() => buildPopupHtml(key, d.oaza === d.koaza ? d.oaza : d.oaza + ' ' + d.koaza, '農地 ' + d.count + '件'), { minWidth: 210 });
     koazaMarker.on('popupopen', () => {
       const ta = document.getElementById('memo-' + key.replace(/\|/g,'__'));
       if (ta) ta.value = getMemo(key);
@@ -765,18 +971,16 @@ function rebuildLabels() {
         letter-spacing:0.05em;margin-left:-50%;display:inline-block;">${d.oaza}</div>`,
       iconAnchor: [0, sz.oaza + 2],
     });
-    const oazaMemoVal = getMemo(key);
-    const oazaMemoHtml = `
-      <b>${d.oaza}</b><br>小字 ${d.koazaKeys.size}個
-      <br><textarea id="memo-${key.replace(/\|/g,'__')}"
-        style="width:180px;height:54px;margin-top:6px;font-size:11px;
-          font-family:'Noto Serif JP',serif;border:1px solid #c8b89a;
-          border-radius:3px;padding:3px 5px;resize:vertical;background:#f9f5ee;"
-        placeholder="よみかた・メモをここに…"
-        oninput="saveMemo('${key}', this.value)"
-      >${oazaMemoVal}</textarea>`;
-    const oazaMarker = L.marker([d.centerLat, d.centerLng], { icon });
-    oazaMarker.bindPopup(oazaMemoHtml, { minWidth: 200 });
+    const oazaMemoCount = typeof getMemoCount === 'function' ? getMemoCount(key) : 0;
+    const oazaMemoColor = typeof getMemoColor === 'function' ? getMemoColor(oazaMemoCount) : null;
+    const oazaMemoCountBadge = oazaMemoCount > 0 ? ` <span style="font-size:9px;background:${oazaMemoColor};color:#fff;border-radius:8px;padding:0 4px;margin-left:2px">${oazaMemoCount}</span>` : '';
+    const oazaIconHtml2 = `<div style="background:${oazaMemoColor || 'rgba(122,58,16,0.88)'};color:#fff;font-size:${sz.oaza}px;
+      font-family:'Noto Serif JP',serif;font-weight:600;padding:3px 8px;border-radius:3px;
+      white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4);
+      letter-spacing:0.05em;margin-left:-50%;display:inline-block;">${d.oaza}${oazaMemoCountBadge}</div>`;
+    const oazaIcon2 = L.divIcon({ className: '', html: oazaIconHtml2, iconAnchor: [0, sz.oaza + 2] });
+    const oazaMarker = L.marker([d.centerLat, d.centerLng], { icon: oazaIcon2 });
+    oazaMarker.bindPopup(() => buildPopupHtml(key, d.oaza, '小字 ' + d.koazaKeys.size + '個'), { minWidth: 210 });
     oazaMarker.on('popupopen', () => {
       const ta = document.getElementById('memo-' + key.replace(/\|/g,'__'));
       if (ta) ta.value = getMemo(key);
@@ -1242,6 +1446,350 @@ function downloadKML() {
   a.click();
 }
 
+
+// ============================================================
+// Firebase 認証・モード管理
+// ============================================================
+let _isFirebaseMode = false;
+let _fbMemosCache = {};  // key → [{text, name, date, uid}]
+
+function onFbAuthChange(user) {
+  _isFirebaseMode = !!user;
+  const loginArea = document.getElementById('login-btn-area');
+  const loggedArea = document.getElementById('logged-in-area');
+  const dropZone = document.getElementById('drop-zone');
+
+  if (user) {
+    loginArea.style.display = 'none';
+    loggedArea.style.display = 'block';
+    const name = user.displayName || user.email || 'ユーザー';
+    document.getElementById('user-display-name').textContent = name;
+    dropZone.classList.add('grayout');
+    // Firebaseのメモをリアルタイムでよみこむ
+    startListeningFbMemos();
+    // ちいきえらぶがめんをひらく
+    openRegionModal();
+  } else {
+    loginArea.style.display = 'block';
+    loggedArea.style.display = 'none';
+    dropZone.classList.remove('grayout');
+    _fbMemosCache = {};
+    stopListeningFbMemos();
+    rebuildLabels();
+  }
+}
+window.onFbAuthChange = onFbAuthChange;
+
+// ============================================================
+// ログインモーダル
+// ============================================================
+let _authTabMode = 'login';
+
+function openAuthModal(type) {
+  document.getElementById('auth-modal').classList.add('open');
+  document.getElementById('auth-error').textContent = '';
+  if (type === 'google') {
+    // グーグルはそのままじっこう
+    doGoogleAuth();
+    return;
+  }
+}
+
+function closeAuthModal() {
+  document.getElementById('auth-modal').classList.remove('open');
+}
+
+function switchAuthTab(tab) {
+  _authTabMode = tab;
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  document.getElementById('auth-nickname-row').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('auth-btn-label').textContent = tab === 'login' ? 'ログイン' : 'とうろく';
+}
+
+async function doEmailAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pass  = document.getElementById('auth-password').value;
+  const nick  = document.getElementById('auth-nickname').value.trim();
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+
+  if (!email || !pass) { errEl.textContent = 'メールとパスワードをにゅうりょくしてください'; return; }
+  if (_authTabMode === 'register' && !nick) { errEl.textContent = 'ニックネームをにゅうりょくしてください'; return; }
+
+  try {
+    const { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } = window._fb;
+    if (_authTabMode === 'register') {
+      const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      await updateProfile(cred.user, { displayName: nick });
+    } else {
+      await signInWithEmailAndPassword(auth, email, pass);
+    }
+    closeAuthModal();
+  } catch(e) {
+    const msgs = {
+      'auth/email-already-in-use': 'このメールはすでにとうろくずみです',
+      'auth/invalid-email': 'メールアドレスのかたちがただしくありません',
+      'auth/weak-password': 'パスワードは6もじいじょうにしてください',
+      'auth/user-not-found': 'このメールはとうろくされていません',
+      'auth/wrong-password': 'パスワードがちがいます',
+      'auth/invalid-credential': 'メールまたはパスワードがちがいます',
+    };
+    errEl.textContent = msgs[e.code] || e.message;
+  }
+}
+
+async function doGoogleAuth() {
+  try {
+    const { auth, GoogleAuthProvider, signInWithPopup } = window._fb;
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+    closeAuthModal();
+  } catch(e) {
+    document.getElementById('auth-error').textContent = e.message;
+  }
+}
+
+async function doSignOut() {
+  const { auth, signOut } = window._fb;
+  await signOut(auth);
+}
+
+// ============================================================
+// Firebaseメモのよみかき
+// ============================================================
+let _fbMemoListener = null;
+
+function startListeningFbMemos() {
+  if (!window._fb) return;
+  const { db, ref, onValue } = window._fb;
+  const memosRef = ref(db, 'memos');
+  _fbMemoListener = onValue(memosRef, snap => {
+    _fbMemosCache = snap.val() || {};
+    rebuildLabels();
+  });
+}
+
+function stopListeningFbMemos() {
+  _fbMemoListener = null;
+}
+
+function getFbMemos(key) {
+  // key → [{text, name, date, uid}] のリスト
+  const node = _fbMemosCache[key.replace(/\|/g, '__')];
+  if (!node) return [];
+  return Object.values(node).sort((a,b) => (a.ts||0) - (b.ts||0));
+}
+
+async function addFbMemo(key, text) {
+  if (!window._fbUser) return;
+  if (!text.trim()) return;
+  const { db, ref, push } = window._fb;
+  const safeKey = key.replace(/\|/g, '__');
+  const memosRef = ref(db, 'memos/' + safeKey);
+  await push(memosRef, {
+    text: text.trim(),
+    name: window._fbUser.displayName || window._fbUser.email || '匿名',
+    uid:  window._fbUser.uid,
+    ts:   Date.now(),
+    date: new Date().toLocaleDateString('ja-JP')
+  });
+}
+
+async function deleteFbMemo(key, memoId) {
+  if (!window._fbUser) return;
+  const { db, ref, set } = window._fb;
+  const safeKey = key.replace(/\|/g, '__');
+  await set(ref(db, 'memos/' + safeKey + '/' + memoId), null);
+}
+
+function getMemoCount(key) {
+  // Firebaseモードはキャッシュからかぞえる
+  if (_isFirebaseMode) return getFbMemos(key).length;
+  // ローカルモードはlocalStorageのメモがあれば1
+  return getMemo(key) ? 1 : 0;
+}
+
+// ============================================================
+// ちいきえらぶモーダル
+// ============================================================
+function openRegionModal() {
+  if (!window._fb) return;
+  const modal = document.getElementById('region-modal');
+  modal.classList.add('open');
+  loadRegionList();
+}
+
+async function loadRegionList() {
+  const listEl = document.getElementById('region-list');
+  listEl.innerHTML = '<div style="font-size:11px;color:#aaa;padding:8px">よみこみちゅう…</div>';
+
+  try {
+    const { storage, sRef, listAll } = window._fb;
+    const storageRef = sRef(storage, 'geojson/');
+    const result = await listAll(storageRef);
+
+    if (result.items.length === 0) {
+      listEl.innerHTML = '<div style="font-size:11px;color:#aaa;padding:8px">ファイルがありません。かんりしゃにといあわせてください。</div>';
+      return;
+    }
+
+    listEl.innerHTML = result.items.map(item => `
+      <label>
+        <input type="checkbox" value="${item.fullPath}" name="region-check">
+        ${item.name.replace('.geojson','').replace('_圧縮','')}
+      </label>
+    `).join('');
+  } catch(e) {
+    listEl.innerHTML = '<div style="font-size:11px;color:#c00;padding:8px">よみこみしっぱい: ' + e.message + '</div>';
+  }
+}
+
+async function loadSelectedRegions() {
+  const checks = document.querySelectorAll('input[name="region-check"]:checked');
+  if (checks.length === 0) { alert('ちいきをえらんでください'); return; }
+
+  document.getElementById('region-modal').classList.remove('open');
+
+  const { storage, sRef, getDownloadURL } = window._fb;
+  for (const check of checks) {
+    try {
+      const url = await getDownloadURL(sRef(storage, check.value));
+      const res = await fetch(url);
+      const geojson = await res.json();
+      addFeatures(geojson.features || [], check.value.split('/').pop());
+      loadedFiles.push(check.value.split('/').pop());
+    } catch(e) {
+      alert('よみこみしっぱい: ' + check.value);
+    }
+  }
+  updateFileList();
+  rebuildMap();
+}
+
+// ============================================================
+// フォントサイズスライダ
+// ============================================================
+const DEFAULT_FONT = { oaza: 16, koaza: 12 };
+let customFont = { oaza: null, koaza: null };
+
+function onFontChange() {
+  customFont.oaza  = parseInt(document.getElementById('font-oaza').value);
+  customFont.koaza = parseInt(document.getElementById('font-koaza').value);
+  document.getElementById('font-oaza-val').textContent  = customFont.oaza  + 'px';
+  document.getElementById('font-koaza-val').textContent = customFont.koaza + 'px';
+  rebuildLabels();
+}
+
+function resetFontSize() {
+  customFont = { oaza: null, koaza: null };
+  document.getElementById('font-oaza').value  = DEFAULT_FONT.oaza;
+  document.getElementById('font-koaza').value = DEFAULT_FONT.koaza;
+  document.getElementById('font-oaza-val').textContent  = DEFAULT_FONT.oaza  + 'px';
+  document.getElementById('font-koaza-val').textContent = DEFAULT_FONT.koaza + 'px';
+  rebuildLabels();
+}
+
+// ============================================================
+// JPG・PDF保存（β）
+// ============================================================
+async function captureMap(format) {
+  if (!confirm('⚠️ これはベータきのうです。\nうまくうごかないばあいがあります。\nつづけますか？')) return;
+
+  const mapEl = document.getElementById('map');
+  try {
+    const canvas = await html2canvas(mapEl, {
+      useCORS: true, allowTaint: true, scale: 2
+    });
+    if (format === 'jpg') {
+      const a = document.createElement('a');
+      a.download = '農地ナビ地名地図_' + getTimestamp() + '.jpg';
+      a.href = canvas.toDataURL('image/jpeg', 0.92);
+      a.click();
+    } else {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px',
+        format: [canvas.width/2, canvas.height/2] });
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0,
+        canvas.width/2, canvas.height/2);
+      pdf.save('農地ナビ地名地図_' + getTimestamp() + '.pdf');
+    }
+  } catch(e) {
+    alert('キャプチャしっぱい: ' + e.message);
+  }
+}
+
+
+// ポップアップHTMLをつくる（ローカル・Firebase共通）
+function buildPopupHtml(key, title, subInfo) {
+  const localMemo = getMemo(key);
+  const fbMemos   = typeof getFbMemos === 'function' ? getFbMemos(key) : [];
+  const safeId    = key.replace(/\|/g, '__');
+
+  let html = `<b>${title}</b><br>${subInfo}`;
+
+  // JSONのメモ（よみこみのみ）
+  if (localMemo) {
+    html += `<div style="margin-top:6px;padding:5px;background:#f0ead8;border-radius:3px;font-size:10px;color:#555">
+      <div style="font-size:9px;color:#aaa;margin-bottom:2px">📝 ローカルメモ（へんしゅうふか）</div>
+      <div style="white-space:pre-wrap">${localMemo}</div>
+    </div>`;
+  }
+
+  // Firebaseのメモ
+  if (fbMemos.length > 0) {
+    html += `<div style="margin-top:6px;font-size:9px;color:#888;border-top:1px solid #ddd;padding-top:4px">みんなのメモ</div>`;
+    fbMemos.forEach((m, i) => {
+      const canDel = window._fbUser && m.uid === window._fbUser.uid;
+      html += `<div style="margin-top:4px;padding:4px 5px;background:#f9f5ee;border-radius:3px;font-size:10px">
+        <div style="white-space:pre-wrap">${m.text}</div>
+        <div style="font-size:9px;color:#aaa;margin-top:2px;display:flex;justify-content:space-between">
+          <span>${m.name}　${m.date}</span>
+          ${canDel ? `<span style="cursor:pointer;color:#c00" onclick="deleteFbMemoAndRefresh('${key}','${Object.keys(_fbMemosCache[key.replace(/\|/g,'__')]||{})[i]}')">削除</span>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+
+  // メモついかフォーム（ログインモードのみ）
+  if (_isFirebaseMode) {
+    html += `<div style="margin-top:6px">
+      <textarea id="fb-memo-input-${safeId}"
+        style="width:190px;height:48px;font-size:10px;font-family:'Noto Serif JP',serif;
+          border:1px solid #c8b89a;border-radius:3px;padding:3px 5px;resize:vertical;background:#f9f5ee;"
+        placeholder="メモをついか…"></textarea>
+      <button onclick="submitFbMemo('${key}')"
+        style="margin-top:3px;width:100%;padding:3px;font-size:10px;cursor:pointer;
+          border:none;background:var(--accent);color:#fff;border-radius:3px;
+          font-family:'Noto Serif JP',serif">ついか</button>
+    </div>`;
+  } else {
+    // ローカルモード
+    html += `<br><textarea id="memo-${safeId}"
+      style="width:180px;height:54px;margin-top:6px;font-size:11px;
+        font-family:'Noto Serif JP',serif;border:1px solid #c8b89a;
+        border-radius:3px;padding:3px 5px;resize:vertical;background:#f9f5ee;"
+      placeholder="よみかた・メモをここに…"
+      oninput="saveMemo('${key}', this.value)"
+    >${localMemo}</textarea>`;
+  }
+
+  return html;
+}
+
+async function submitFbMemo(key) {
+  const safeId = key.replace(/\|/g, '__');
+  const ta = document.getElementById('fb-memo-input-' + safeId);
+  if (!ta || !ta.value.trim()) return;
+  await addFbMemo(key, ta.value);
+  ta.value = '';
+}
+
+async function deleteFbMemoAndRefresh(key, memoId) {
+  if (!confirm('このメモをさくじょしますか？')) return;
+  await deleteFbMemo(key, memoId);
+}
+
 // ============================================================
 // データクリア
 // ============================================================
@@ -1265,5 +1813,45 @@ function clearAll() {
   document.getElementById('search-input').value = '';
 }
 </script>
+
+<!-- ログインモーダル -->
+<div id="auth-modal">
+  <div id="auth-box">
+    <span id="auth-close" onclick="closeAuthModal()">✕</span>
+    <h3>ログイン / 新規とうろく</h3>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">ログイン</div>
+      <div class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">新規とうろく</div>
+    </div>
+    <div id="auth-nickname-row" style="display:none">
+      <input type="text" id="auth-nickname" placeholder="ニックネーム（ひょうじされます）">
+    </div>
+    <input type="email" id="auth-email" placeholder="メールアドレス">
+    <input type="password" id="auth-password" placeholder="パスワード（6もじいじょう）">
+    <button class="auth-btn auth-btn-primary" onclick="doEmailAuth()">
+      <span id="auth-btn-label">ログイン</span>
+    </button>
+    <button class="auth-btn auth-btn-google" onclick="doGoogleAuth()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18">
+      Googleでログイン
+    </button>
+    <div id="auth-error"></div>
+  </div>
+</div>
+
+<!-- ちいきえらぶモーダル -->
+<div id="region-modal">
+  <div id="region-box">
+    <h3>🗾 地域をえらんでください</h3>
+    <div id="region-list">
+      <div style="font-size:11px;color:#aaa;padding:8px">よみこみちゅう…</div>
+    </div>
+    <button id="region-load-btn" onclick="loadSelectedRegions()">よみこむ</button>
+  </div>
+</div>
+
+<!-- JPG/PDFキャプチャ用スクリプト（β） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </body>
 </html>
