@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>農地ナビ地名地図 v5.2</title>
+<title>農地ナビ地名地図 v5.3</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -116,11 +116,25 @@ body {
 #drop-area:hover, #drop-area.dragover { border-color: var(--accent); background: rgba(184,92,16,0.06); color: var(--accent); }
 #drop-area input { display: none; }
 
+/* スプリタ */
+#splitter {
+  height: 6px; background: var(--border); cursor: ns-resize;
+  flex-shrink: 0; display: none;
+  position: relative;
+}
+#splitter::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px; height: 2px;
+  background: #aaa; border-radius: 2px;
+  box-shadow: 0 -3px 0 #aaa, 0 3px 0 #aaa;
+}
+#splitter.visible { display: block; }
+
 #file-list {
   padding: 4px 10px; border-bottom: 1px solid var(--border);
   background: var(--paper); min-height: 24px; max-height: 200px;
   overflow-y: auto; display: none; flex-shrink: 0;
-  resize: vertical;
 }
 #file-list::-webkit-scrollbar { width: 8px; }
 #file-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -355,6 +369,13 @@ body {
 #font-reset { font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer;
   border: 1px solid var(--border); background: var(--paper2); margin-top: 2px;
   font-family: 'Noto Serif JP', serif; }
+#label-arrange-btn {
+  font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--paper2); color: var(--accent);
+  margin-top: 4px; margin-left: 4px;
+  font-family: 'Noto Serif JP', serif;
+}
+#label-arrange-btn:hover { background: var(--accent); color: #fff; }
 
 /* ============================================================
    ヘッダボタン
@@ -437,6 +458,27 @@ body {
 .hdrop-item:last-child { border-bottom: none; }
 .hdrop-item:hover { background: var(--paper2); }
 
+/* キャプチャくるくるスピナ */
+#capture-spinner {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 9999;
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 16px;
+}
+#capture-spinner.open { display: flex; }
+#capture-spinner .spin-ring {
+  width: 52px; height: 52px;
+  border: 5px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+#capture-spinner .spin-label {
+  color: #fff; font-size: 13px;
+  font-family: 'Noto Serif JP', serif;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ハンバガ・すまほ */
 #hamburger {
   display: none; cursor: pointer; font-size: 18px; color: #fff;
@@ -484,8 +526,8 @@ body {
       <div id="hdrop-export" class="hdrop">
         <div class="hdrop-item" onclick="downloadMyMapCSV();closeHDrops()">🗺 Googleマイマップ用CSV</div>
         <div class="hdrop-item" onclick="downloadKML();closeHDrops()">🗺 KML</div>
-        <div class="hdrop-item" onclick="captureMap('jpg');closeHDrops()">📷 JPGで保存 β</div>
-        <div class="hdrop-item" onclick="captureMap('pdf');closeHDrops()">📄 PDFで保存 β</div>
+        <div class="hdrop-item" onclick="captureMap('jpg');closeHDrops()">📷 JPGでキャプチャ β</div>
+        <div class="hdrop-item" onclick="captureMap('pdf');closeHDrops()">📄 PDFでキャプチャ β</div>
       </div>
     </div>
     <button class="hbtn danger" onclick="clearAll()">🗑 クリア</button>
@@ -495,7 +537,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.2</span>
+    <span id="version-badge">v5.3</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -545,15 +587,16 @@ body {
       <h4>文字サイズ</h4>
       <div class="font-row">
         <label>大字</label>
-        <input type="range" id="font-oaza" min="8" max="24" value="16" oninput="onFontChange()">
+        <input type="range" id="font-oaza" min="8" max="48" value="16" oninput="onFontChange()">
         <span id="font-oaza-val">16px</span>
       </div>
       <div class="font-row">
         <label>小字</label>
-        <input type="range" id="font-koaza" min="6" max="20" value="12" oninput="onFontChange()">
+        <input type="range" id="font-koaza" min="6" max="36" value="12" oninput="onFontChange()">
         <span id="font-koaza-val">12px</span>
       </div>
       <button id="font-reset" onclick="resetFontSize()">デフォルトにもどす</button>
+      <button id="label-arrange-btn" onclick="arrangeLabels()">🗂 ラベル整とん</button>
     </div>
 
     <!-- ファイル読み込み -->
@@ -571,6 +614,9 @@ body {
 
     <!-- 地名ツリー -->
     <div id="tree"></div>
+
+    <!-- スプリタ（ツリーとファイルリストのあいだ） -->
+    <div id="splitter"></div>
 
     <!-- 読み込みファイル一覧（さいご） -->
     <div id="file-list"></div>
@@ -765,6 +811,12 @@ function updateFileList() {
   const visibleCount = allFeatures.filter(f => !hiddenFiles.has(f._source)).length;
   document.getElementById('file-count').textContent =
     `${loadedFiles.length}ファイル / ${visibleCount}件表示`;
+  // スプリタのひょうじをきりかえ
+  const splitter = document.getElementById('splitter');
+  if (splitter) {
+    if (loadedFiles.length > 0) splitter.classList.add('visible');
+    else splitter.classList.remove('visible');
+  }
 }
 
 function toggleFile(filename) {
@@ -1003,7 +1055,7 @@ function resetHighlight() {
 
 map.on('click', resetHighlight);
 
-// ズームにおうじてラベルをつくりなおす
+// ズームにおうじてラベルをつくりなおす（整とんもリセト）
 map.on('zoomend', rebuildLabels);
 
 // ============================================================
@@ -1762,7 +1814,7 @@ async function loadRegionList() {
 
     listEl.innerHTML = result.items.map(item => `
       <label>
-        <input type="checkbox" value="${item.fullPath}" name="region-check">
+        <input type="radio" value="${item.fullPath}" name="region-check">
         ${item.name.replace('.geojson','').replace('_圧縮','')}
       </label>
     `).join('');
@@ -1791,6 +1843,110 @@ async function loadSelectedRegions() {
   }
   updateFileList();
   rebuildMap();
+  // よみこんだら「地域をえらぶ」ボタンをむこうにする
+  _lockRegionSelect();
+}
+
+function _lockRegionSelect() {
+  const btn = document.querySelector('#logged-in-area button[onclick="openRegionModal()"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    btn.title = 'クリアするまでほかのちいきはえらべません';
+  }
+}
+
+function _unlockRegionSelect() {
+  const btn = document.querySelector('#logged-in-area button[onclick="openRegionModal()"]');
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.title = '';
+  }
+}
+
+// ============================================================
+// ラベル整とん（かさなりけんち・ずらす）
+// ============================================================
+function arrangeLabels() {
+  if (Object.keys(koazaData).length === 0) return;
+
+  // ちずじょうのラベルマーカをぜんぶあつめる
+  const markerInfos = [];
+
+  layers.koaza.eachLayer(marker => {
+    const latlng = marker.getLatLng();
+    const pt = map.latLngToContainerPoint(latlng);
+    const el = marker.getElement();
+    const w = el ? el.offsetWidth  : 60;
+    const h = el ? el.offsetHeight : 20;
+    markerInfos.push({ marker, pt: { x: pt.x, y: pt.y }, orig: { x: pt.x, y: pt.y }, w, h, type: 'koaza' });
+  });
+
+  layers.oaza.eachLayer(marker => {
+    const latlng = marker.getLatLng();
+    const pt = map.latLngToContainerPoint(latlng);
+    const el = marker.getElement();
+    const w = el ? el.offsetWidth  : 80;
+    const h = el ? el.offsetHeight : 24;
+    markerInfos.push({ marker, pt: { x: pt.x, y: pt.y }, orig: { x: pt.x, y: pt.y }, w, h, type: 'oaza' });
+  });
+
+  if (markerInfos.length === 0) return;
+
+  // かさなりけんちしてずらす（さいだい10かいくりかえし）
+  const PAD = 4; // ラベルどうしのすきまpx
+  const MAX_SHIFT = 80; // ずらしのさいだいpx
+
+  for (let iter = 0; iter < 10; iter++) {
+    let moved = false;
+    for (let i = 0; i < markerInfos.length; i++) {
+      for (let j = i + 1; j < markerInfos.length; j++) {
+        const a = markerInfos[i];
+        const b = markerInfos[j];
+        // バウンディングボクスのかさなりをチェク
+        const ax1 = a.pt.x - PAD, ax2 = a.pt.x + a.w + PAD;
+        const ay1 = a.pt.y - a.h - PAD, ay2 = a.pt.y + PAD;
+        const bx1 = b.pt.x - PAD, bx2 = b.pt.x + b.w + PAD;
+        const by1 = b.pt.y - b.h - PAD, by2 = b.pt.y + PAD;
+
+        const overlapX = ax1 < bx2 && ax2 > bx1;
+        const overlapY = ay1 < by2 && ay2 > by1;
+        if (!overlapX || !overlapY) continue;
+
+        // かさなてる→bをずらす
+        // よこほうこうにずらすかたてほうこうにずらすか、おおきいほうをえらぶ
+        const overW = Math.min(ax2, bx2) - Math.max(ax1, bx1);
+        const overH = Math.min(ay2, by2) - Math.max(ay1, by1);
+
+        let dx = 0, dy = 0;
+        if (overW < overH) {
+          dx = (b.pt.x > a.pt.x) ? overW / 2 : -overW / 2;
+        } else {
+          dy = (b.pt.y > a.pt.y) ? overH / 2 : -overH / 2;
+        }
+
+        // さいだいずらし量をせいげん
+        const newBx = b.pt.x + dx;
+        const newBy = b.pt.y + dy;
+        if (Math.abs(newBx - b.orig.x) <= MAX_SHIFT) { b.pt.x = newBx; moved = true; }
+        if (Math.abs(newBy - b.orig.y) <= MAX_SHIFT) { b.pt.y = newBy; moved = true; }
+      }
+    }
+    if (!moved) break;
+  }
+
+  // ずらしたいちにマーカをうごかす
+  markerInfos.forEach(info => {
+    const dx = info.pt.x - info.orig.x;
+    const dy = info.pt.y - info.orig.y;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    const origLatLng = info.marker.getLatLng();
+    const origPt = map.latLngToContainerPoint(origLatLng);
+    const newPt = L.point(origPt.x + dx, origPt.y + dy);
+    const newLatLng = map.containerPointToLatLng(newPt);
+    info.marker.setLatLng(newLatLng);
+  });
 }
 
 // ============================================================
@@ -1822,6 +1978,11 @@ function resetFontSize() {
 async function captureMap(format) {
   if (!confirm('⚠️ これはベータきのうです。\nうまくうごかないばあいがあります。\nつづけますか？')) return;
 
+  const spinner = document.getElementById('capture-spinner');
+  const spinLabel = document.getElementById('capture-spinner-label');
+  spinLabel.textContent = format === 'jpg' ? 'JPGキャプチャちゅう…' : 'PDFキャプチャちゅう…';
+  spinner.classList.add('open');
+
   const mapEl = document.getElementById('map');
   try {
     const canvas = await html2canvas(mapEl, {
@@ -1842,6 +2003,8 @@ async function captureMap(format) {
     }
   } catch(e) {
     alert('キャプチャしっぱい: ' + e.message);
+  } finally {
+    spinner.classList.remove('open');
   }
 }
 
@@ -1916,6 +2079,75 @@ async function deleteFbMemoAndRefresh(key, memoId) {
   await deleteFbMemo(key, memoId);
 }
 
+
+// ============================================================
+// スプリタ（ファイルリストとこざツリーのたかさをかえる）
+// ============================================================
+(function() {
+  const splitter = document.getElementById('splitter');
+  const fileList = document.getElementById('file-list');
+  const tree     = document.getElementById('tree');
+
+  let dragging = false, startY = 0, startFileH = 0, startTreeH = 0;
+
+  splitter.addEventListener('mousedown', e => {
+    dragging = true;
+    startY = e.clientY;
+    startFileH = fileList.offsetHeight;
+    startTreeH = tree.offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    const newFileH = Math.max(40, startFileH + dy);
+    const newTreeH = Math.max(60, startTreeH - dy);
+    fileList.style.maxHeight = newFileH + 'px';
+    fileList.style.height    = newFileH + 'px';
+    tree.style.maxHeight     = newTreeH + 'px';
+    tree.style.height        = newTreeH + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  // タッチそうさにもたいおう
+  splitter.addEventListener('touchstart', e => {
+    dragging = true;
+    startY = e.touches[0].clientY;
+    startFileH = fileList.offsetHeight;
+    startTreeH = tree.offsetHeight;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const dy = e.touches[0].clientY - startY;
+    const newFileH = Math.max(40, startFileH + dy);
+    const newTreeH = Math.max(60, startTreeH - dy);
+    fileList.style.maxHeight = newFileH + 'px';
+    fileList.style.height    = newFileH + 'px';
+    tree.style.maxHeight     = newTreeH + 'px';
+    tree.style.height        = newTreeH + 'px';
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => { dragging = false; });
+
+  // ファイルリストがひょうじされたらスプリタをだす
+  const origUpdateFileList = window.updateFileList;
+  window._showSplitterIfNeeded = function() {
+    if (fileList.style.display !== 'none' && fileList.style.display !== '') {
+      splitter.classList.add('visible');
+    } else {
+      splitter.classList.remove('visible');
+    }
+  };
+})();
 
 // ============================================================
 // ヘッダドロプダウン・ハンバガメニ
@@ -2072,8 +2304,16 @@ function clearAll() {
   document.getElementById('tree').innerHTML = '';
   document.getElementById('empty-msg').style.display = 'block';
   document.getElementById('search-input').value = '';
+  // ログインモドのちいきせんたくをかいじょ
+  _unlockRegionSelect();
 }
 </script>
+
+<!-- キャプチャくるくるスピナ -->
+<div id="capture-spinner">
+  <div class="spin-ring"></div>
+  <div class="spin-label" id="capture-spinner-label">キャプチャちゅう…</div>
+</div>
 
 <!-- ログインモーダル -->
 <div id="auth-modal">
@@ -2103,7 +2343,7 @@ function clearAll() {
 <!-- ちいきえらぶモーダル -->
 <div id="region-modal">
   <div id="region-box">
-    <h3>🗾 地域をえらんでください</h3>
+    <h3>🗾 地域をえらんでください（1つ）</h3>
     <div id="region-list">
       <div style="font-size:11px;color:#aaa;padding:8px">よみこみちゅう…</div>
     </div>
