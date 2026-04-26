@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.22</title>
+<title>農地ナビ地名地図 v5.16</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -118,23 +118,6 @@ body {
 }
 #drop-area:hover, #drop-area.dragover { border-color: var(--accent); background: rgba(184,92,16,0.06); color: var(--accent); }
 #drop-area input { display: none; }
-
-/* すまほ用フッタボタン */
-#mobile-footer {
-  display: none; padding: 10px; gap: 8px;
-  border-top: 2px solid var(--border);
-  background: var(--paper); flex-shrink: 0;
-}
-.mobile-footer-btn {
-  flex: 1; padding: 10px 8px; border-radius: 4px; cursor: pointer;
-  font-size: 12px; font-family: 'Noto Serif JP', serif;
-  text-align: center; border: 1px solid var(--border);
-  background: var(--paper2); color: var(--ink);
-  text-decoration: none; display: block;
-}
-.mobile-footer-btn.danger { border-color: #e74c3c; color: #e74c3c; }
-.mobile-footer-btn.danger:hover { background: rgba(231,76,60,0.1); }
-@media (max-width: 640px) { #mobile-footer { display: flex; } }
 
 /* スプリッター2（ドロップエリアとけんさくのあいだ） */
 .splitter2 {
@@ -565,7 +548,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.22</span>
+  <span id="version-badge-mobile">v5.16</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -597,7 +580,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.22</span>
+    <span id="version-badge">v5.16</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -615,7 +598,6 @@ body {
         <div class="user-name">👤 <span id="user-display-name"></span><span id="mode-badge">共有モード</span></div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           <button onclick="openRegionModal()">🗾 地域をえらぶ</button>
-          <button onclick="issueReadonlyUrl()" id="readonly-url-btn" style="display:none">🔗 URLはっこう</button>
           <button onclick="doSignOut()">ログアウト</button>
         </div>
       </div>
@@ -683,12 +665,6 @@ body {
 
     <!-- 読み込みファイル一覧（さいご） -->
     <div id="file-list"></div>
-
-    <!-- すまほ用ボタンエリア -->
-    <div id="mobile-footer">
-      <button class="mobile-footer-btn danger" onclick="clearAll();closeSidebar()">🗑 クリア</button>
-      <a href="https://map.maff.go.jp/" target="_blank" rel="noopener" class="mobile-footer-btn">eMAFF農地ナビ ↗</a>
-    </div>
   </div>
 
   <!-- 地番モーダル -->
@@ -900,19 +876,11 @@ function updateFileList() {
   const visibleCount = allFeatures.filter(f => !hiddenFiles.has(f._source)).length;
   document.getElementById('file-count').textContent =
     `${loadedFiles.length}ファイル / ${visibleCount}件表示`;
-  // URLはっこうボタンのひょうじをきりかえ（ログインモドのみ）
-  const urlBtn = document.getElementById('readonly-url-btn');
-  if (urlBtn && _isFirebaseMode) {
-    urlBtn.style.display = loadedFiles.length > 0 ? 'inline-block' : 'none';
-  }
+  // スプリタのひょうじをきりかえ
   const splitter = document.getElementById('splitter');
   if (splitter) {
-    if (loadedFiles.length > 0) {
-      splitter.style.display = '';
-      splitter.classList.add('visible');
-    } else {
-      splitter.classList.remove('visible');
-    }
+    if (loadedFiles.length > 0) splitter.classList.add('visible');
+    else splitter.classList.remove('visible');
   }
 }
 
@@ -1742,9 +1710,8 @@ function onFbAuthChange(user) {
     dropZone.classList.add('grayout');
     // Firebaseのメモをリアルタイムでよみこむ
     startListeningFbMemos();
-    // ちいきえらぶがめんをひらく（readonlyモードのときはひらかない）
-    const isReadonly = new URLSearchParams(location.search).get('readonly') === '1';
-    if (!isReadonly) openRegionModal();
+    // ちいきえらぶがめんをひらく
+    openRegionModal();
   } else {
     loginArea.style.display = 'block';
     loggedArea.style.display = 'none';
@@ -2220,105 +2187,6 @@ async function deleteFbMemoAndRefresh(key, memoId) {
   await deleteFbMemo(key, memoId);
 }
 
-
-// ============================================================
-// よみとりせんようURL はっこう・よみこみ
-// ============================================================
-function issueReadonlyUrl() {
-  if (loadedFiles.length === 0) { alert('じぇいそんをよみこんでからURLをはっこうしてください'); return; }
-  const center = map.getCenter();
-  const zoom   = map.getZoom();
-  const params = new URLSearchParams({
-    file:      loadedFiles[0],
-    lat:       center.lat.toFixed(6),
-    lng:       center.lng.toFixed(6),
-    zoom:      zoom.toFixed(2),
-    fontOaza:  document.getElementById('font-oaza').value,
-    fontKoaza: document.getElementById('font-koaza').value,
-    readonly:  '1'
-  });
-  const url = location.origin + location.pathname + '?' + params.toString();
-  navigator.clipboard.writeText(url).then(() => {
-    alert('URLをクリップボードにコピーしました！\n\n' + url);
-  }).catch(() => {
-    prompt('このURLをコピーしてください：', url);
-  });
-}
-
-// よみとりモードのしょきか
-(function() {
-  const params = new URLSearchParams(location.search);
-  if (params.get('readonly') !== '1') return;
-
-  const lat       = parseFloat(params.get('lat'));
-  const lng       = parseFloat(params.get('lng'));
-  const zoom      = parseFloat(params.get('zoom'));
-  const file      = params.get('file');
-  const fontOaza  = parseInt(params.get('fontOaza'));
-  const fontKoaza = parseInt(params.get('fontKoaza'));
-
-  // ちずのいちをセット
-  if (!isNaN(lat) && !isNaN(lng) && !isNaN(zoom)) {
-    map.setView([lat, lng], zoom);
-  }
-
-  // フォントサイズをセット
-  if (!isNaN(fontOaza)) {
-    document.getElementById('font-oaza').value = fontOaza;
-    customFont.oaza = fontOaza;
-  }
-  if (!isNaN(fontKoaza)) {
-    document.getElementById('font-koaza').value = fontKoaza;
-    customFont.koaza = fontKoaza;
-  }
-
-  // えつらんモードのUIをせいり
-  function applyReadonlyUI() {
-    document.getElementById('header-btns').style.display = 'none';
-    const badge = document.createElement('span');
-    badge.textContent = '👁 閲覧モード';
-    badge.style.cssText = 'font-size:10px;background:#2a7a3a;color:#fff;padding:2px 7px;border-radius:3px;white-space:nowrap;margin-left:4px;';
-    document.getElementById('header').appendChild(badge);
-    document.getElementById('login-section').style.display = 'none';
-    document.getElementById('drop-zone').style.display = 'none';
-    document.getElementById('splitter2').style.display = 'none';
-    document.getElementById('file-list').style.display = 'none';
-    document.getElementById('splitter').style.display = 'none';
-    document.getElementById('mobile-footer').style.display = 'none';
-  }
-
-  // DOMがよめるようになってからスタト
-  window.addEventListener('DOMContentLoaded', () => {
-    applyReadonlyUI();
-
-    if (!file) return;
-
-    const spinner   = document.getElementById('capture-spinner');
-    const spinLabel = document.getElementById('capture-spinner-label');
-    spinLabel.textContent = 'よみこみちゅう…';
-    spinner.classList.add('open');
-
-    const waitFb = setInterval(() => {
-      if (!window._fb) return;
-      clearInterval(waitFb);
-      const { storage, sRef, getDownloadURL } = window._fb;
-      getDownloadURL(sRef(storage, 'geojson/' + file))
-        .then(url => fetch(url))
-        .then(r => r.json())
-        .then(geojson => {
-          addFeatures(geojson.features || [], file);
-          loadedFiles.push(file);
-          rebuildMap(true);
-          setTimeout(() => rebuildLabels(), 500);
-          spinner.classList.remove('open');
-        })
-        .catch(e => {
-          spinner.classList.remove('open');
-          alert('よみこみしっぱい: ' + e.message);
-        });
-    }, 200);
-  });
-})();
 
 // ============================================================
 // スプリッター2（ドロップエリアとこざツリーのあいだ）
