@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.18</title>
+<title>農地ナビ地名地図 v5.19</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -565,7 +565,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.18</span>
+  <span id="version-badge-mobile">v5.19</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -597,7 +597,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.18</span>
+    <span id="version-badge">v5.19</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -2246,13 +2246,10 @@ function issueReadonlyUrl() {
   const params = new URLSearchParams(location.search);
   if (params.get('readonly') !== '1') return;
 
-  // よみとりモードのときはUIをかくす
-  document.addEventListener('DOMContentLoaded', () => {});
-
-  const lat      = parseFloat(params.get('lat'));
-  const lng      = parseFloat(params.get('lng'));
-  const zoom     = parseFloat(params.get('zoom'));
-  const file     = params.get('file');
+  const lat       = parseFloat(params.get('lat'));
+  const lng       = parseFloat(params.get('lng'));
+  const zoom      = parseFloat(params.get('zoom'));
+  const file      = params.get('file');
   const fontOaza  = parseInt(params.get('fontOaza'));
   const fontKoaza = parseInt(params.get('fontKoaza'));
 
@@ -2271,43 +2268,52 @@ function issueReadonlyUrl() {
     customFont.koaza = fontKoaza;
   }
 
-  // じぇいそんをStorageからよみこむ（ログインなし）
+  // えつらんモードのUIをせいり（DOMがよめるようになってからやる）
+  function applyReadonlyUI() {
+    // ヘッダ：タイトルとバジと閲覧モードバジだけのこす、ほかのボタンかくす
+    document.getElementById('header-btns').style.display = 'none';
+    // 閲覧モードバジをついか
+    const badge = document.createElement('span');
+    badge.textContent = '👁 閲覧モード';
+    badge.style.cssText = 'font-size:10px;background:#2a7a3a;color:#fff;padding:2px 7px;border-radius:3px;white-space:nowrap;margin-left:4px;';
+    document.getElementById('header').appendChild(badge);
+
+    // サイドバのよけいなものをかくす
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('splitter2').style.display = 'none';
+    document.getElementById('file-list').style.display = 'none';
+    document.getElementById('splitter').style.display = 'none';
+    document.getElementById('mobile-footer').style.display = 'none';
+  }
+
+  // じぇいそんをStorageからよみこむ（window._fb待ち）
   if (file) {
-    const spinner = document.getElementById('capture-spinner');
+    const spinner   = document.getElementById('capture-spinner');
     const spinLabel = document.getElementById('capture-spinner-label');
     spinLabel.textContent = 'よみこみちゅう…';
     spinner.classList.add('open');
 
-    import('https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js').then(({ getStorage, ref, getDownloadURL }) => {
-      import('https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js').then(({ initializeApp, getApps }) => {
-        // すでにinitializeされてるのでwindow._fbをつかう
-        const waitFb = setInterval(() => {
-          if (!window._fb) return;
-          clearInterval(waitFb);
-          const { storage, sRef, getDownloadURL: gdl } = window._fb;
-          gdl(sRef(storage, 'geojson/' + file)).then(url => fetch(url)).then(r => r.json()).then(geojson => {
-            addFeatures(geojson.features || [], file);
-            loadedFiles.push(file);
-            updateFileList();
-            rebuildMap(true); // fitBoundsしない
-            spinner.classList.remove('open');
-          }).catch(e => {
-            spinner.classList.remove('open');
-            alert('よみこみしっぱい: ' + e.message);
-          });
-        }, 200);
-      });
-    });
+    const waitFb = setInterval(() => {
+      if (!window._fb) return;
+      clearInterval(waitFb);
+      applyReadonlyUI();
+      const { storage, sRef, getDownloadURL } = window._fb;
+      getDownloadURL(sRef(storage, 'geojson/' + file))
+        .then(url => fetch(url))
+        .then(r => r.json())
+        .then(geojson => {
+          addFeatures(geojson.features || [], file);
+          loadedFiles.push(file);
+          rebuildMap(true); // fitBoundsしない
+          spinner.classList.remove('open');
+        })
+        .catch(e => {
+          spinner.classList.remove('open');
+          alert('よみこみしっぱい: ' + e.message);
+        });
+    }, 200);
   }
-
-  // よみとりモードのUIをかくす
-  window.addEventListener('load', () => {
-    const header = document.getElementById('header');
-    const hamburger = document.getElementById('hamburger');
-    if (header) header.style.display = 'none';
-    // ちずをぜんがめんに
-    document.getElementById('main').style.height = '100dvh';
-  });
 })();
 
 // ============================================================
