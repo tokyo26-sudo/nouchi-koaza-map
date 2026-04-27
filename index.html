@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.35</title>
+<title>農地ナビ地名地図 v5.37</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -78,9 +78,9 @@ body {
   flex-shrink: 0; border-bottom: 2px solid var(--accent);
 }
 #header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.08em; flex: 1; }
-#version-badge { font-size: 10px; background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 3px; }
+#version-badge { font-size: 10px; background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 3px; vertical-align: middle; }
 #version-badge-mobile { display: none; font-size: 10px; background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 3px; }
-@media (max-width: 640px) { #version-badge-mobile { display: inline; } }
+@media (max-width: 640px) { #version-badge { display: none; } #version-badge-mobile { display: inline; } }
 #file-count { font-size: 11px; color: #aaa; }
 
 #main { flex: 1; display: flex; overflow: hidden; }
@@ -598,8 +598,8 @@ body {
 
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
-  <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.35</span>
+  <h1>農地ナビ地名地図 <span id="version-badge">v5.37</span></h1>
+  <span id="version-badge-mobile">v5.37</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -609,7 +609,7 @@ body {
       </div>
     </div>
     <div style="position:relative">
-      <button class="hbtn" onclick="toggleHDrop('hdrop-export')">🗺 出力 ▾</button>
+      <button class="hbtn" onclick="toggleHDrop('hdrop-export')">📤 出力 ▾</button>
       <div id="hdrop-export" class="hdrop">
         <div class="hdrop-item" onclick="downloadMyMapCSV();closeHDrops()">🗺 Googleマイマップ用CSV</div>
         <div class="hdrop-item" onclick="downloadKML();closeHDrops()">🗺 KML（地図アプリ用）</div>
@@ -626,7 +626,6 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.35</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -772,7 +771,7 @@ const baseLayers = {
   }),
 };
 baseLayers['地理院（淡色）'].addTo(map);
-L.control.layers(baseLayers, {}, { position: 'topright', collapsed: false }).addTo(map);
+L.control.layers(baseLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
 
 // ============================================================
 // データ管理
