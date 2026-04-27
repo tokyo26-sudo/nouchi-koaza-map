@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.32</title>
+<title>農地ナビ地名地図 v5.33</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -599,7 +599,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.32</span>
+  <span id="version-badge-mobile">v5.33</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -631,7 +631,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.32</span>
+    <span id="version-badge">v5.33</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -1229,9 +1229,16 @@ function getLabelSizes() {
 // メモかずでいろをかえる
 function getMemoColor(count) {
   if (count === 0) return null;
-  if (count === 1) return '#e8d44d';   // うすきいろ
+  if (count === 1) return '#c8a800';   // やまぶきいろ
   if (count <= 3)  return '#e8943a';   // オレンジ
   return '#c0392b';                     // あかっぽい
+}
+
+function getMemoCountLabel(count) {
+  const circled = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩',
+                   '⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+  if (count <= 20) return circled[count - 1];
+  return String(count);
 }
 
 function rebuildLabels() {
@@ -1255,8 +1262,8 @@ function rebuildLabels() {
     const memoCount = typeof getMemoCount === 'function' ? getMemoCount(key) : 0;
     const memoColor = typeof getMemoColor === 'function' ? getMemoColor(memoCount) : null;
     const koazaText = d.koaza === d.oaza ? '' : d.koaza;
-    const memoCountBadge = memoCount > 0 ? ` <span style="font-size:9px;background:${memoColor};color:#fff;border-radius:8px;padding:0 4px;margin-left:2px">${memoCount}</span>` : '';
-    const koazaIconHtml = `<div style="background:${memoColor || 'rgba(26,90,122,0.82)'};color:#fff;font-size:${sz.koaza}px;
+    const memoCountBadge = memoCount > 0 ? ` <span style="font-size:9px;background:${memoColor};color:#fff;border-radius:8px;padding:0 4px;margin-left:2px">${getMemoCountLabel(memoCount)}</span>` : '';
+    const koazaIconHtml = `<div style="background:rgba(26,90,122,0.82);color:#fff;font-size:${sz.koaza}px;
       font-family:'Noto Serif JP',serif;padding:2px 5px;border-radius:3px;
       white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);
       margin-left:-50%;display:inline-block;">${koazaText}${memoCountBadge}</div>`;
@@ -1284,8 +1291,8 @@ function rebuildLabels() {
     });
     const oazaMemoCount = typeof getMemoCount === 'function' ? getMemoCount(key) : 0;
     const oazaMemoColor = typeof getMemoColor === 'function' ? getMemoColor(oazaMemoCount) : null;
-    const oazaMemoCountBadge = oazaMemoCount > 0 ? ` <span style="font-size:9px;background:${oazaMemoColor};color:#fff;border-radius:8px;padding:0 4px;margin-left:2px">${oazaMemoCount}</span>` : '';
-    const oazaIconHtml2 = `<div style="background:${oazaMemoColor || 'rgba(122,58,16,0.88)'};color:#fff;font-size:${sz.oaza}px;
+    const oazaMemoCountBadge = oazaMemoCount > 0 ? ` <span style="font-size:9px;background:${oazaMemoColor};color:#fff;border-radius:8px;padding:0 4px;margin-left:2px">${getMemoCountLabel(oazaMemoCount)}</span>` : '';
+    const oazaIconHtml2 = `<div style="background:rgba(122,58,16,0.88);color:#fff;font-size:${sz.oaza}px;
       font-family:'Noto Serif JP',serif;font-weight:600;padding:3px 8px;border-radius:3px;
       white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.4);
       letter-spacing:0.05em;margin-left:-50%;display:inline-block;">${d.oaza}${oazaMemoCountBadge}</div>`;
