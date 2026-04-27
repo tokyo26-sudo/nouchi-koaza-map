@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.31</title>
+<title>農地ナビ地名地図 v5.32</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -599,7 +599,7 @@ body {
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
   <h1>農地ナビ地名地図</h1>
-  <span id="version-badge-mobile">v5.31</span>
+  <span id="version-badge-mobile">v5.32</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -631,7 +631,7 @@ body {
       border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">
       eMAFF農地ナビ ↗
     </a>
-    <span id="version-badge">v5.31</span>
+    <span id="version-badge">v5.32</span>
     <span id="file-count">ファイル未読込</span>
   </div>
 </div>
@@ -874,7 +874,9 @@ function handleFiles(files) {
           loadMemosFromObj(geojson.memos);
         }
         addFeatures(geojson.features || [], file.name);
-        rawFileSizes[file.name] = file.size; // なまデータのサイズをほぞん
+        // なまデータのときだけrawFileSizesにほぞん（あっしゅく・フル保存はのぞく）
+        const isRaw = !((geojson.features || [])[0]?.properties?._source);
+        if (isRaw) rawFileSizes[file.name] = file.size;
         loadedFiles.push(file.name);
         updateFileList();
       } catch(err) {
@@ -1294,6 +1296,7 @@ function rebuildLabels() {
       const ta = document.getElementById('memo-' + key.replace(/\|/g,'__'));
       if (ta) ta.value = getMemo(key);
     });
+    oazaMarker.on('click', () => { if (layerVisible.pin) highlightOaza(key); });
     oazaMarker.addTo(layers.oaza);
   });
 
@@ -1371,7 +1374,7 @@ function buildTree(filter = '') {
     if (fl && koazaItems.length === 0 && !oazaLabel.includes(fl)) return;
 
     const isOpen = fl ? 'open' : '';
-    html += `<div class="oaza-item ${isOpen}" onclick="toggleOaza(this,'${oKey}');highlightOaza('${oKey}')">
+    html += `<div class="oaza-item ${isOpen}" onclick="toggleOaza(this,'${oKey}')">
       <span class="toggle">▶</span>${g.d.oaza}<span class="cnt">${g.keys.length}</span>
     </div>
     <div class="koaza-list ${isOpen}" id="kl-${oKey.replace(/\|/g,'_')}">`;
@@ -1407,8 +1410,6 @@ function toggleOaza(el, oKey) {
 let _highlightedOazaKey = null;
 
 function highlightOaza(oKey) {
-  console.log('highlightOaza called:', oKey);
-  console.log('pinMarkers keys sample:', Object.keys(pinMarkers).slice(0,3));
   if (_highlightedOazaKey === oKey) {
     _highlightedOazaKey = null;
     resetHighlight();
@@ -1423,21 +1424,18 @@ function highlightOaza(oKey) {
     );
   });
 
-  let hitCount = 0;
   // そのだいじのこざキーをぜんぶハイライト
   Object.keys(pinMarkers).forEach(k => {
     const d = koazaData[k];
     if (!d) return;
     const thisOazaKey = `${d.pref}|${d.city}|${d.oaza}`;
     if (thisOazaKey === oKey) {
-      hitCount++;
       pinMarkers[k].forEach(m => {
         m.setStyle({ radius: 5, color: '#e06020', fillColor: '#ff8030', fillOpacity: 0.9, weight: 1.5, opacity: 1 });
         m.bringToFront();
       });
     }
   });
-  console.log('highlighted koaza count:', hitCount);
 }
 
 function filterTree(val) { buildTree(val); }
