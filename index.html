@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.39</title>
+<title>農地ナビ地名地図 v5.41</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -598,8 +598,8 @@ body {
 
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
-  <h1>農地ナビ地名地図 <span id="version-badge">v5.39</span></h1>
-  <span id="version-badge-mobile">v5.39</span>
+  <h1>農地ナビ地名地図 <span id="version-badge">v5.41</span></h1>
+  <span id="version-badge-mobile">v5.41</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -615,6 +615,7 @@ body {
         <div class="hdrop-item" onclick="downloadKML();closeHDrops()">🗺 KML（地図アプリ用）</div>
         <div class="hdrop-item" onclick="downloadList();closeHDrops()">📋 小字リスト（テキスト）</div>
         <div class="hdrop-item" onclick="downloadListCSV();closeHDrops()">📊 小字リスト（CSV）</div>
+        <div class="hdrop-item" id="csv-import-btn" onclick="importMemoCSV();closeHDrops()" style="display:none">📥 メモCSVよみこみ</div>
         <div class="hdrop-item" onclick="captureMap('jpg');closeHDrops()">📷 JPGでキャプチャ（β版）</div>
         <div class="hdrop-item" onclick="captureMap('pdf');closeHDrops()">📄 PDFでキャプチャ（β版）</div>
       </div>
@@ -1833,6 +1834,8 @@ function downloadKML() {
 let _isFirebaseMode = false;
 let _fbMemosCache = {};  // key → [{text, name, date, uid}]
 
+const ADMIN_EMAIL = 'tokyo26@gmail.com'; // かんりしゃのメールアドレス
+
 function onFbAuthChange(user) {
   _isFirebaseMode = !!user;
   const loginArea = document.getElementById('login-btn-area');
@@ -1845,6 +1848,9 @@ function onFbAuthChange(user) {
     const name = user.displayName || user.email || 'ユーザー';
     document.getElementById('user-display-name').textContent = name;
     dropZone.classList.add('grayout');
+    // かんりしゃのときだけCSVよみこみボタンをひょうじ
+    const csvImportBtn = document.getElementById('csv-import-btn');
+    if (csvImportBtn) csvImportBtn.style.display = user.email === ADMIN_EMAIL ? 'block' : 'none';
     // Firebaseのメモをリアルタイムでよみこむ
     startListeningFbMemos();
     // ちいきえらぶがめんをひらく
@@ -1856,6 +1862,9 @@ function onFbAuthChange(user) {
     _fbMemosCache = {};
     stopListeningFbMemos();
     rebuildLabels();
+    // CSVよみこみボタンをかくす
+    const csvImportBtn = document.getElementById('csv-import-btn');
+    if (csvImportBtn) csvImportBtn.style.display = 'none';
   }
 }
 window.onFbAuthChange = onFbAuthChange;
@@ -2596,7 +2605,18 @@ function downloadListCSV() {
   if (Object.keys(koazaData).length === 0) { alert('データがありません'); return; }
 
   const bom = String.fromCharCode(0xFEFF);
-  const rows = [['市町村', '大字', '小字', '農地件数', 'ローカルメモ', 'みんなのメモ'].join(',')];
+
+  // メモのさいだいかずをもとめる
+  let maxMemos = 0;
+  Object.keys(koazaData).forEach(key => {
+    const fbMemoList = typeof getFbMemos === 'function' ? getFbMemos(key) : [];
+    if (fbMemoList.length > maxMemos) maxMemos = fbMemoList.length;
+  });
+
+  // ヘッダ
+  const memoHeaders = [];
+  for (let i = 1; i <= maxMemos; i++) memoHeaders.push(`メモ${i}`);
+  const rows = [['市町村', '大字', '小字', '農地件数', 'ローカルメモ', ...memoHeaders].join(',')];
 
   const grouped = {};
   Object.entries(koazaData).forEach(([key, d]) => {
@@ -2613,14 +2633,20 @@ function downloadListCSV() {
         .forEach(({ key, d }) => {
           const localMemo = getMemo(key);
           const fbMemoList = typeof getFbMemos === 'function' ? getFbMemos(key) : [];
-          const fbMemoStr = fbMemoList.map(m => `${m.text}（${m.name} ${m.date}）`).join(' / ');
+          // 1セル：コメント/なまえ/にちじ（yyyymmdd）
+          const memoCells = fbMemoList.map(m => {
+            const dateStr = (m.date || '').replace(/\//g, '').replace(/-/g, '').replace(/年|月/g, '').replace(/日/g, '').trim();
+            return `"${(m.text + '/' + m.name + '/' + dateStr).replace(/"/g, '""')}"`;
+          });
+          // さいだいかずまでからのセルをうめる
+          while (memoCells.length < maxMemos) memoCells.push('""');
           rows.push([
             `"${d.city}"`,
             `"${d.oaza}"`,
             `"${d.koaza}"`,
             d.count,
             `"${localMemo.replace(/"/g,'""')}"`,
-            `"${fbMemoStr.replace(/"/g,'""')}"`
+            ...memoCells
           ].join(','));
         });
     });
@@ -2630,6 +2656,116 @@ function downloadListCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = `小字リスト_${getTopCity()}_${getTimestamp()}.csv`;
   a.click();
+}
+
+// ============================================================
+// メモCSVよみこみ（かんりしゃのみ）
+// ============================================================
+async function importMemoCSV() {
+  if (!window._fbUser) { alert('ログインがひつようデス'); return; }
+  if (window._fbUser.email !== ADMIN_EMAIL) { alert('かんりしゃのみつかえるきのうデス'); return; }
+
+  // バクアプをとる
+  const backupOk = await showDialog('📥 CSVをよみこむまえに、いまのメモデータをバクアプダウンロードします。\nOKをおしてからCSVをえらんでください。');
+  if (!backupOk) return;
+
+  // バクアプダウンロード
+  const backupData = JSON.stringify(_fbMemosCache, null, 2);
+  const backupBlob = new Blob([backupData], { type: 'application/json' });
+  const backupA = document.createElement('a');
+  backupA.href = URL.createObjectURL(backupBlob);
+  backupA.download = `メモバクアプ_${getTimestamp()}.json`;
+  backupA.click();
+
+  // ファイルえらぶ
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    await _processMemoCSV(text);
+  };
+  input.click();
+}
+
+async function _processMemoCSV(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) { alert('CSVのないようがありません'); return; }
+
+  // ヘッダをスキプ
+  const dataLines = lines.slice(1);
+  let successCount = 0;
+  let errorCount = 0;
+
+  const { db, ref, push } = window._fb;
+  const now = Date.now();
+  const nowDate = new Date().toLocaleDateString('ja-JP');
+
+  for (const line of dataLines) {
+    // CSVパース（かんたんばん）
+    const cols = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
+    const clean = cols.map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
+
+    const city  = clean[0];
+    const oaza  = clean[1];
+    const koaza = clean[2];
+    if (!city || !oaza || !koaza) continue;
+
+    // こざキーをさがす
+    const koazaKey = Object.keys(koazaData).find(k => {
+      const d = koazaData[k];
+      return d.city === city && d.oaza === oaza && d.koaza === koaza;
+    });
+    if (!koazaKey) { errorCount++; continue; }
+
+    // メモ5れつめから（インデクス4）がメモセル
+    for (let i = 5; i < clean.length; i++) {
+      const cell = clean[i];
+      if (!cell) continue;
+
+      // さいごから2つをなまえ・にちじとしてあつかう
+      const parts = cell.split('/');
+      if (parts.length < 2) continue;
+
+      let dateStr = parts[parts.length - 1].trim();
+      const name  = parts[parts.length - 2].trim();
+      const commentParts = parts.slice(0, parts.length - 2);
+      const comment = commentParts.join('/').trim();
+      if (!comment) continue;
+
+      // にちじへんかん（8けたすうじ→よみやすいかたち）
+      // 全角→半角
+      dateStr = dateStr.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+      // 8けたすうじならフォーマット
+      let displayDate = nowDate;
+      if (/^\d{8}$/.test(dateStr)) {
+        const y = dateStr.slice(0,4), m = dateStr.slice(4,6), d2 = dateStr.slice(6,8);
+        displayDate = `${y}/${m}/${d2}`;
+      } else if (dateStr) {
+        displayDate = dateStr;
+      }
+
+      // Firebaseにほぞん
+      const safeKey = koazaKey.replace(/\|/g, '__');
+      const memosRef = ref(db, 'memos/' + safeKey);
+      try {
+        await push(memosRef, {
+          text: comment,
+          name: name || '（なまえなし）',
+          uid:  window._fbUser.uid,
+          ts:   now,
+          date: displayDate
+        });
+        successCount++;
+      } catch(e) {
+        errorCount++;
+      }
+    }
+  }
+
+  alert(`よみこみかんりょうデス！\nついか：${successCount}けん\nエラ：${errorCount}けん`);
 }
 
 // ============================================================
