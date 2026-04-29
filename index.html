@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.41</title>
+<title>農地ナビ地名地図 v5.43</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -598,8 +598,8 @@ body {
 
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
-  <h1>農地ナビ地名地図 <span id="version-badge">v5.41</span></h1>
-  <span id="version-badge-mobile">v5.41</span>
+  <h1>農地ナビ地名地図 <span id="version-badge">v5.43</span></h1>
+  <span id="version-badge-mobile">v5.43</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -2633,10 +2633,11 @@ function downloadListCSV() {
         .forEach(({ key, d }) => {
           const localMemo = getMemo(key);
           const fbMemoList = typeof getFbMemos === 'function' ? getFbMemos(key) : [];
-          // 1セル：コメント/なまえ/にちじ（yyyymmdd）
+          // 1セル：コメント/なまえ/にちじ/ts:タイムスタンプ
           const memoCells = fbMemoList.map(m => {
             const dateStr = (m.date || '').replace(/\//g, '').replace(/-/g, '').replace(/年|月/g, '').replace(/日/g, '').trim();
-            return `"${(m.text + '/' + m.name + '/' + dateStr).replace(/"/g, '""')}"`;
+            const tsStr = m.ts ? `/ts:${m.ts}` : '';
+            return `"${(m.text + '/' + m.name + '/' + dateStr + tsStr).replace(/"/g, '""')}"`;
           });
           // さいだいかずまでからのセルをうめる
           while (memoCells.length < maxMemos) memoCells.push('""');
@@ -2665,19 +2666,9 @@ async function importMemoCSV() {
   if (!window._fbUser) { alert('ログインがひつようデス'); return; }
   if (window._fbUser.email !== ADMIN_EMAIL) { alert('かんりしゃのみつかえるきのうデス'); return; }
 
-  // バクアプをとる
-  const backupOk = await showDialog('📥 CSVをよみこむまえに、いまのメモデータをバクアプダウンロードします。\nOKをおしてからCSVをえらんでください。');
-  if (!backupOk) return;
+  const ok = await showDialog('📥 メモCSVをよみこみます。\nじゅうふくするメモはスキプされるデスよ。\nつづけますカ？');
+  if (!ok) return;
 
-  // バクアプダウンロード
-  const backupData = JSON.stringify(_fbMemosCache, null, 2);
-  const backupBlob = new Blob([backupData], { type: 'application/json' });
-  const backupA = document.createElement('a');
-  backupA.href = URL.createObjectURL(backupBlob);
-  backupA.download = `メモバクアプ_${getTimestamp()}.json`;
-  backupA.click();
-
-  // ファイルえらぶ
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.csv';
@@ -2694,18 +2685,25 @@ async function _processMemoCSV(text) {
   const lines = text.split('\n').filter(l => l.trim());
   if (lines.length < 2) { alert('CSVのないようがありません'); return; }
 
-  // ヘッダをスキプ
   const dataLines = lines.slice(1);
   let successCount = 0;
+  let skipCount = 0;
   let errorCount = 0;
 
   const { db, ref, push } = window._fb;
   const now = Date.now();
   const nowDate = new Date().toLocaleDateString('ja-JP');
 
+  // いまのFirebaseメモのtsをぜんぶあつめる（じゅうふくはんてい用）
+  const existingTs = new Set();
+  Object.values(_fbMemosCache).forEach(node => {
+    Object.values(node).forEach(m => {
+      if (m.ts) existingTs.add(String(m.ts));
+    });
+  });
+
   for (const line of dataLines) {
-    // CSVパース（かんたんばん）
-    const cols = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
+    const cols = line.match(/("(?:[^"]|"")*"|[^,]*)/g) || [];
     const clean = cols.map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
 
     const city  = clean[0];
@@ -2713,41 +2711,46 @@ async function _processMemoCSV(text) {
     const koaza = clean[2];
     if (!city || !oaza || !koaza) continue;
 
-    // こざキーをさがす
     const koazaKey = Object.keys(koazaData).find(k => {
       const d = koazaData[k];
       return d.city === city && d.oaza === oaza && d.koaza === koaza;
     });
     if (!koazaKey) { errorCount++; continue; }
 
-    // メモ5れつめから（インデクス4）がメモセル
+    // インデクス5以降がFirebaseメモセル
     for (let i = 5; i < clean.length; i++) {
       const cell = clean[i];
       if (!cell) continue;
 
-      // さいごから2つをなまえ・にちじとしてあつかう
       const parts = cell.split('/');
       if (parts.length < 2) continue;
 
-      let dateStr = parts[parts.length - 1].trim();
-      const name  = parts[parts.length - 2].trim();
-      const commentParts = parts.slice(0, parts.length - 2);
-      const comment = commentParts.join('/').trim();
-      if (!comment) continue;
+      // ts:xxxxxxxxのぶぶんをさがす
+      const tsPart = parts.find(p => p.trim().startsWith('ts:'));
+      const partsWithoutTs = parts.filter(p => !p.trim().startsWith('ts:'));
 
-      // にちじへんかん（8けたすうじ→よみやすいかたち）
-      // 全角→半角
-      dateStr = dateStr.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-      // 8けたすうじならフォーマット
-      let displayDate = nowDate;
-      if (/^\d{8}$/.test(dateStr)) {
-        const y = dateStr.slice(0,4), m = dateStr.slice(4,6), d2 = dateStr.slice(6,8);
-        displayDate = `${y}/${m}/${d2}`;
-      } else if (dateStr) {
-        displayDate = dateStr;
+      let tsVal = null;
+      if (tsPart) {
+        tsVal = tsPart.replace('ts:', '').trim();
+        // すでにFirebaseにあるtsはスキプ
+        if (existingTs.has(tsVal)) { skipCount++; continue; }
       }
 
-      // Firebaseにほぞん
+      // さいごから2つをなまえ・にちじとしてあつかう
+      const dateStr = partsWithoutTs[partsWithoutTs.length - 1].trim();
+      const name    = partsWithoutTs[partsWithoutTs.length - 2].trim();
+      const comment = partsWithoutTs.slice(0, partsWithoutTs.length - 2).join('/').trim();
+      if (!comment) continue;
+
+      // にちじへんかん
+      let displayDate = nowDate;
+      const cleanDate = dateStr.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+      if (/^\d{8}$/.test(cleanDate)) {
+        displayDate = `${cleanDate.slice(0,4)}/${cleanDate.slice(4,6)}/${cleanDate.slice(6,8)}`;
+      } else if (cleanDate) {
+        displayDate = cleanDate;
+      }
+
       const safeKey = koazaKey.replace(/\|/g, '__');
       const memosRef = ref(db, 'memos/' + safeKey);
       try {
@@ -2755,7 +2758,7 @@ async function _processMemoCSV(text) {
           text: comment,
           name: name || '（なまえなし）',
           uid:  window._fbUser.uid,
-          ts:   now,
+          ts:   tsVal ? parseInt(tsVal) : now,
           date: displayDate
         });
         successCount++;
@@ -2765,7 +2768,7 @@ async function _processMemoCSV(text) {
     }
   }
 
-  alert(`よみこみかんりょうデス！\nついか：${successCount}けん\nエラ：${errorCount}けん`);
+  alert(`よみこみかんりょうデス！\nついか：${successCount}けん\nスキプ（じゅうふく）：${skipCount}けん\nエラ：${errorCount}けん`);
 }
 
 // ============================================================
