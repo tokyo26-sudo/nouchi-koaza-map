@@ -1012,7 +1012,7 @@ function extractKoazaDirect(addr) {
   if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
 
   // パターン1: 「大字〇〇字△△」（サブエリアあってもOK）
-  let m = rest.match(/大字([^\d字（]+?)字([^\d（]+)/);
+  m = rest.match(/大字([^\d字（]+?)字([^\d（]+)/);
   if (m) return { oaza: m[1].trim(), koaza: m[2].trim() };
 
   // パターン2: 「大字」をのぞいてから「〇〇字△△」
