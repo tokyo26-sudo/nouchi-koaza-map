@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>農地ナビ地名地図 v5.44</title>
+<title>農地ナビ地名地図 v5.45</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -598,8 +598,8 @@ body {
 
 <div id="header">
   <button id="hamburger" onclick="toggleSidebar()">☰</button>
-  <h1>農地ナビ地名地図 <span id="version-badge">v5.44</span></h1>
-  <span id="version-badge-mobile">v5.44</span>
+  <h1>農地ナビ地名地図 <span id="version-badge">v5.45</span></h1>
+  <span id="version-badge-mobile">v5.45</span>
   <div id="header-btns">
     <div style="position:relative">
       <button class="hbtn" onclick="toggleHDrop('hdrop-save')">💾 保存 ▾</button>
@@ -746,7 +746,7 @@ body {
 // ============================================================
 // 地図初期化
 // ============================================================
-const map = L.map('map', { zoomControl: false, zoomSnap: 0.25, zoomDelta: 0.25 }).setView([27.4, 128.9], 12);
+const map = L.map('map', { preferCanvas: true, zoomControl: false, zoomSnap: 0.25, zoomDelta: 0.25 }).setView([27.4, 128.9], 12);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
 // アクセスしたひとのいちをよみこむ
